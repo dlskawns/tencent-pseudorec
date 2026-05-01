@@ -1,0 +1,8 @@
+# Pinned for cloud reproducibility — CLAUDE.md §17.6 + cloud-handoff skill.
+# torch wheel: replace with platform CUDA-matching build (cu118 / cu121 / etc.).
+torch>=2.0,<3.0
+pyarrow>=14.0,<24.0
+numpy>=1.24,<3.0
+scikit-learn>=1.3
+tqdm>=4.65
+tensorboard>=2.14
