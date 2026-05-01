@@ -1,0 +1,106 @@
+id: H010_anchor_recalibration_extended
+hypothesis_id: H010_anchor_recalibration_extended
+slug: anchor_recalibration_extended
+status: scaffold
+compute_tier: T2.4 extended (10ep × 30%, patience=3) ~2-3.5h
+claim_scope: "original_baseline 의 extended envelope ground truth 측정. mechanism mutation 0, envelope mutation only (smoke 1ep×5%, patience=5 → extended 10ep×30%, patience=3). H006~H009 의 paired Δ 정확화 + H007 verdict F-3 / H009 verdict F-3 직접 충족. measurement objective — §17.3 binary 임계 미적용."
+
+control: original_baseline (smoke envelope, platform AUC ~0.83X)
+treatment: |
+  같은 original_baseline 코드 (PCVRHyFormer pure baseline + label_time split +
+  10% user OOF + §18 인프라 룰) 그대로 (mechanism mutation 0) 다만 envelope
+  변경:
+    --num_epochs 1 → 10
+    --train_ratio 0.05 → 0.3
+    --patience 5 → 3 (H008 F-4 carry-forward)
+  그 외 모든 args byte-identical.
+  코드 byte-identical: original_baseline/upload/ 의 12 파일 (run.sh 제외)
+  그대로 카피. mechanism 코드 (H006~H009 의 longer encoder / candidate xattn /
+  DCN-V2 / OneTrans router) 어떤 것도 포함 안 함.
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256
+  num_epochs: 10                           # H010 extended (smoke 1 → 10)
+  patience: 3                              # H010 extended (smoke 5 → 3, H008 F-4)
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.3                         # H010 extended (smoke 0.05 → 0.3)
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+  reinit_sparse_after_epoch: 1             # original_baseline 동일
+
+run_command: bash experiments/H010_anchor_recalibration_extended/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 120                     # ~2-3.5시간 with patience=3
+
+falsification:
+  P1: NaN abort or non-finite best_val_AUC (envelope 변경의 NaN 트리거)
+  P2: not falsifying — measurement objective. 4 시나리오 (A/B/C/D) 모두 interpretable
+  P3: |val - platform| > 0.05 (val proxy 신뢰 회귀)
+  P4: any §18 인프라 회귀
+  P5: not falsifying — OOF-platform 갭 measurement
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD
+  total_param_count: TBD                   # ~198M (original_baseline 동일)
+
+mutation_class:
+  axis: n/a (envelope mutation)
+  type: envelope-only-mutation
+  rotation: n/a (mechanism category 미부여, §10.7 적용 안 됨)
+
+infra_inheritance:
+  - §18 모든 룰 inherit (original_baseline 패키지 byte-identical)
+  - infer.py byte-identical (새 cfg key 없음)
+
+carry_forward_from_prior:
+  - H007 F-3: anchor extended 측정 미래 H — 본 H 직접 충족
+  - H008 F-4: patience=3 + early stop aggressive
+  - H009 F-3: anchor 정확값 의존성 정량 노출 → 본 H priority 1순위 confirmed
+  - §18 인프라 룰 (original_baseline 패키지에 이미 포함)
+
+decision_tree_post_result:
+  scenario_A: |
+    anchor extended ∈ [0.825, 0.840] (smoke 와 비슷) →
+    envelope 효과 작음. mechanism 효과 dominant. H011 = mechanism class rotation
+    (NS→S xattn 또는 aligned <id, weight> pair encoding).
+  scenario_B: |
+    anchor extended ∈ [0.840, 0.850] (smoke 보다 ≥ +0.5pt 위) →
+    mechanism 효과 reassessment. H007 marginal/aligned with anchor.
+    H011 = sub-H 로 H007/H008 단독 paired re-measure 또는 mechanism 효과 sub-decomposition.
+  scenario_C: |
+    anchor extended < 0.825 (smoke 보다 낮음) →
+    envelope 룰 재검토. H011 = envelope 정의 sub-H.
+  scenario_D: |
+    anchor extended ∈ [0.835, 0.840] (most likely) →
+    H007 ≈ anchor, H008 only measurable lift.
+    H011 = H008 anchor 위 single mutation.
+  infra_regression: |
+    P4 fail → §18 회귀. infer.py 디버깅 우선.
+
+code_package_status: PENDING_BUILD          # 다음 turn: original_baseline/upload/ 12 파일 카피 + run.sh envelope 변경

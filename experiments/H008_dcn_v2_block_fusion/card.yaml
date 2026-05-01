@@ -1,0 +1,101 @@
+id: H008_dcn_v2_block_fusion
+hypothesis_id: H008_dcn_v2_block_fusion
+slug: dcn_v2_block_fusion
+status: scaffold
+compute_tier: T2.4 smoke (~5min) → extended (~3h) on PASS confirmed
+claim_scope: "MultiSeqHyFormerBlock step 3 (token fusion) → RankMixerBlock → DCNV2CrossBlock 으로 swap. block-level gradient sharing 보존 (§0 P1 직접 충족). §17.4 sparse_feature_cross 첫 적용."
+
+control: original_baseline (anchor platform AUC ~0.83X)
+treatment: |
+  같은 anchor envelope (label_time split, 10% user OOF, train_ratio=0.05,
+  num_epochs=1, halved seq_max_lens, NS=5+2=7, num_queries=2, BCE) PLUS
+  `--fusion_type dcn_v2`. MultiSeqHyFormerBlock 의 step 3 fusion 모듈을
+  RankMixerBlock 에서 DCNV2CrossBlock 으로 swap. 같은 input/output shape
+  ((B, T, D) where T = num_queries × num_sequences + num_ns), 같은 위치,
+  같은 역할 (decoded_q + NS tokens fusion), 다른 mechanism (token-mixing →
+  explicit polynomial cross with x₀ residual).
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full                    # H008 에선 사용 안 됨 (fusion swap)
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256
+  num_epochs: 1
+  patience: 5
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.05
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+  fusion_type: dcn_v2                      # H008 NEW (default 'rankmixer' → 'dcn_v2')
+  dcn_v2_num_layers: 2                     # H008 NEW (polynomial degree 3)
+  dcn_v2_rank: 8                           # H008 NEW (low-rank approx, D/8)
+
+run_command: bash experiments/H008_dcn_v2_block_fusion/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 5
+
+falsification:
+  P1: NaN abort or non-finite best_val_AUC
+  P2: Δ < +0.5pt platform AUC vs anchor
+  P3: cross weight norms ≈ 0 (degenerate to identity)
+  P4: any §18 인프라 회귀
+  P5: not falsifying — bonus val ↔ platform alignment
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD
+  total_param_count: TBD                   # ~198M (RankMixer remove + DCN-V2 add ≈ net 0)
+
+mutation_class:
+  axis: sparse_feature_cross
+  type: one-mutation                       # fusion 클래스 swap
+  rotation: sparse_feature_cross (first)   # §17.4 추가 충족
+
+infra_inheritance:
+  - §18.1 batch_size 256 default 생성자 인자
+  - §18.2 dim==1 universal handler
+  - §18.3 진단 로그
+  - §18.4 INFER_NUM_WORKERS=2, no autocast, PYTORCH_CUDA_ALLOC_CONF
+  - §18.5 make_schema 모든 list-type variant
+  - infer.py 새 cfg key (fusion_type, dcn_v2_num_layers, dcn_v2_rank) 자동 read-back
+
+carry_forward_from_prior:
+  - H007 F-1: target_attention mechanism PASS → orthogonal axis (interaction) 검증
+  - H007 F-2: val ↔ platform 정합 expected
+  - H007 F-4: extended envelope cost → smoke 우선
+  - §10.5 LayerNorm on x₀ MANDATORY (DCN-V2 첫 step Pre-LN 충족)
+
+decision_tree_post_result:
+  pass: |
+    Δ ≥ +0.5pt + P3/P4 PASS → H008 PASS. H009 = combined H007 + H008
+    (sub-H, candidate xattn + DCN-V2 stack, additive 가정 검증).
+  weak_signal: |
+    Δ ∈ [+0.0, +0.5pt) + P4 PASS at smoke → extended retry (3ep × 30%).
+  break: |
+    Δ < 0 → swap 자체가 information loss. RankMixer + DCN-V2 parallel arm H 후보.
+  infra_regression: |
+    P4 fail → §18 회귀. infer.py 디버깅 우선.
+
+code_package_status: PENDING_BUILD          # 다음 turn: model.py + train.py + infer.py 통합

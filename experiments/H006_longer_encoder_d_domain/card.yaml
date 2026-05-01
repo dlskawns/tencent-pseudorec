@@ -1,0 +1,97 @@
+id: H006_longer_encoder_d_domain
+hypothesis_id: H006_longer_encoder_d_domain
+slug: longer_encoder_d_domain
+status: scaffold
+compute_tier: T2.4 (Taiji platform smoke, ~5min)
+claim_scope: "Encoder swap transformer→longer (organizer LongerEncoder, top-K=50 self-attention compression). PCVRHyFormer-anchor (original_baseline) 위 첫 mutation. §17.4 rotation 추가 충족 (long_seq_retrieval)."
+
+control: original_baseline (anchor val_AUC TBD — measurement 대기)
+treatment: |
+  같은 organizer-pure baseline + leak-fix smoke envelope (label_time split,
+  10% user OOF, train_ratio=0.05, num_epochs=1, halved seq_max_lens, NS=5+2=7,
+  num_queries=2, BCE loss) PLUS `--seq_encoder_type longer`. 4 도메인 모두
+  TransformerEncoder → LongerEncoder (top-K=50 self-attention compression)
+  교체. 코드 변경 0 (organizer-supplied class).
+
+config:
+  use_label_time_split: true               # leak-fix anchor 동일
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: longer                 # H006 NEW (default 'transformer' → 'longer')
+  seq_top_k: 50                            # LongerEncoder default
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256
+  num_epochs: 1
+  patience: 5
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.05
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+
+run_command: bash experiments/H006_longer_encoder_d_domain/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 5
+
+falsification:
+  P1: NaN abort or non-finite best_val_AUC
+  P2: Δ < +0.5pt val_AUC vs anchor (original_baseline)
+  P3: per-domain attention pattern measurement 안 되면 noted (not falsifying)
+  P4: any G1-G6 fail OR §18 인프라 회귀 (heuristic fallback / batch heartbeat 없음 / platform AUC 0.5)
+  P5: not falsifying — bonus val ↔ platform alignment
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD                       # filled after run
+  total_param_count: TBD                   # ~198M expected (encoder swap adds 0 params)
+
+mutation_class:
+  axis: long_seq_retrieval
+  type: one-mutation                       # §17.2
+  rotation: long_seq_retrieval (first)     # §17.4 충족 추가
+
+infra_inheritance:
+  - §18.1 batch_size 생성자 인자 (1024 default, override 금지) — original_baseline infer.py 그대로
+  - §18.2 dim==1 universal handler (to_pylist + isinstance) — original_baseline dataset.py 그대로
+  - §18.3 진단 로그 (MODEL_OUTPUT_PATH, ckpt_dir, WARNING/FALLBACK/OK) — original_baseline infer.py 그대로
+  - §18.4 INFER_BATCH_SIZE=1024, INFER_NUM_WORKERS=2, no autocast — original_baseline 그대로
+  - §18.5 make_schema list-type 모든 variant — original_baseline 그대로
+
+carry_forward_from_archive:
+  - H002 verdict F-1: cross-domain mix sub-block bridge marginal — 본 H 미터치
+  - H004 verdict F-1 (P3 PASS): OneTrans backbone sample-scale 작동, full-data 도착 후 + LongerEncoder 조합 후보
+  - H005 verdict F-1: BCE 12% imbalance 영역에서 충분 → 본 H BCE 유지
+  - 인프라 saga (§18 신설): original_baseline 패키지가 §18 룰 모두 적용 → 본 H 자동 inherit
+
+decision_tree_post_result:
+  pass: |
+    Δ ≥ +0.5pt + P3/P4 PASS → H007 = target_attention (candidate-aware retrieval,
+    paper-grade upgrade) 또는 OneTrans + LongerEncoder 조합 (full-data 도착 시).
+  weak_signal: |
+    Δ ∈ [+0.0, +0.5pt) + P4 PASS → long_seq_retrieval 일시 archive. retry on
+    extended envelope (train_ratio=0.3, num_epochs=3) 별도 H 후보.
+  break: |
+    Δ < 0 → top-K=50 우리 envelope 에서 정보 손실. K tuning H 후보 (50→100/200).
+  infra_regression: |
+    P4 fail → §18 회귀. 즉시 디버깅, anchor 자체 신뢰성 재검증.
+
+code_package_status: COMPLETE              # original_baseline upload base + run.sh 변경만

@@ -1,0 +1,322 @@
+# TAAC 2026 — UNI-REC Project Journal (append only)
+
+================================================================================
+2026-04-26 — iter-00 — harness setup (tencent-cc2)
+================================================================================
+
+CONTEXT
+- 프로젝트 루트: /Users/david/Desktop/assignments/DataEngine/tencent-cc2 (git worktree on feat/agent2)
+- 운영 전제: 로컬 GPU 학습 불가, demo_1000.parquet (1000 rows × 120 cols) 만 보유.
+
+SCOUTING
+- 1차 출처:
+  - HF dataset README (TAAC2026/data_sample_1000) — flat layout, 6 categories, 120 cols, label_type∈{1,2}.
+  - 사용자 paste 가이드 본문 = §13 submission contract (HARD).
+  - 3 paper notes in papers/unified_backbones/: OneTrans (arXiv:2510.26104), InterFormer (arXiv:2411.09852), PCVRHyFormer (organizer baseline).
+- algo.qq.com 직접 fetch 실패 (JS 렌더링) — TAAC2025 web search 결과로 prize/format hint 확보. 2026 metric은 §16 ASSUMPTION FLAG.
+
+DECISIONS
+- CLAUDE.md §0 UNI-REC North Star — 3 papers 명시 mapping.
+- §2.1 로컬 학습 불가 전제 → 4-tier (T0/T1/T2/T3) cloud option.
+- §13 Submission Contract HARD GATE 6항목 + §14 G1–G6.
+- 첫 hypothesis pipeline 초안 (이후 iter-01에서 개정).
+
+ARTIFACTS
+- CLAUDE.md, papers/README.md, papers/unified_backbones/{4 entries}.
+- hypotheses/{INDEX.md, TEMPLATE/6files}.
+- experiments/INDEX.md.
+- notes/remote_training_options.md.
+- submission/{infer.py, local_validate.py, prepare.sh, README.md}.
+- T0.1 prior fallback infer.py 5/5 G1–G6 pass on demo_1000.
+
+================================================================================
+2026-04-26 — iter-01 — competition baseline audit + new approach (anti-LM)
+================================================================================
+
+CONTEXT
+- 사용자 회고: 이전 캠페인이 local-minima에 빠짐. 새 방식 요청.
+- 사용자가 competition/ 디렉토리에 organizer baseline 7개 파일 추가 (model.py 1714줄, dataset.py 763줄, trainer.py 494줄, train.py 363줄, utils.py 288줄, run.sh, ns_groups.json).
+- "unified block에서 baseline을 먼저 테스트" 명시 요청.
+
+AUDIT FINDINGS
+6개 결함:
+- A (dataset.py:709) row-group 순서 split → label_time leakage 가능 + demo_1000 (single row group) 에서 train_rgs=0.
+- B (get_pcvr_data) OOF user 홀드아웃 부재 → 같은 user_id가 train+val 동시.
+- C (train.py:214) tf_events_dir None이면 Path(None).mkdir crash.
+- D (train.py:230) schema.json 필수지만 HF release에 없음.
+- E (submission/infer.py) PCVRHyFormer ckpt 로딩 미구현.
+- F 정책: 이전 8/10 실험이 같은 카테고리 (sparse_feature_cross).
+
+NEW EXPERIMENTAL APPROACH (CLAUDE.md §17, 7원칙)
+1. Baseline-first cloud anchor (E000 = organizer baseline + 결함 A–E 패치).
+2. One-mutation-per-experiment, structural not parametric.
+3. Component-level success binary (Δ ≥ +0.5 pt OOF AUC, seed×3, CI > 0).
+4. Forced category rotation.
+5. Sample-scale = code-path verification only.
+6. Cloud cost = bottleneck (T2 ≤ $5/job, T3 ≤ $12/run).
+7. Falsification-first hypothesis.
+
+ARTIFACTS
+- competition/make_schema.py — auto-generate schema.json (결함 D 해소).
+- competition/run.sh — patched (schema gen step + sane path defaults).
+- competition/dataset.py — append split_parquet_by_label_time + get_pcvr_data_v2 (결함 A, B 해소). 기존 get_pcvr_data 보존.
+- competition/train.py — sane path defaults + --use_label_time_split + --oof_user_ratio + metrics.json output (결함 C, A, B 해소; 재현성).
+- submission/infer.py — extend with PCVRHyFormer ckpt load + prior fallback (결함 E 해소).
+- hypotheses/H001_unified_baseline_full/ — 6 files (problem, challengers, transfer, predictions, lit_refs, verdict-pending).
+- experiments/E000_unified_baseline_demo/{card.yaml, run.sh}.
+- CLAUDE.md §17 — new experimental approach.
+- hypotheses/INDEX.md — H001 active + 5-pipeline (H002 LGBM control, H003 OneTrans NS, H004 InterFormer DAMTB, H005 LongerEncoder seq_d, H006 external inspirations).
+- experiments/INDEX.md — E000 row pending.
+
+NEXT (iter-02)
+- E000 smoke run on M1 (T1.2): make_schema.py → train.py 1 epoch → metrics.json → infer.py round-trip with ckpt.
+- H001 verdict.md 작성 + P1–P5 측정.
+- T0 round-trip 제출 시도 (현재 prior fallback로).
+
+================================================================================
+2026-04-26 — iter-02 — E000 smoke run + H001 verdict
+================================================================================
+
+CONTEXT
+- iter-01 산출물 검증: schema 생성 → train.py 2 epoch → infer.py 라운드트립.
+
+EXECUTION
+- make_schema.py: demo_1000.parquet → schema.json (user_int=46, item_int=14, user_dense=10, seq a/b/c/d = 9/14/12/10, ts_fid={39, 67, 27, 26} via heuristic).
+- v2 split: train=810, valid=90, oof=100, label_time_cutoff=1772725748, 100 OOF users (10%).
+- 모델: PCVRHyFormer 160,944,833 params (158M sparse + 2.5M dense). §10.6 100,000x 초과 — anchor 면제.
+- 학습: 2 epoch CPU, 약 36초. NaN 0건.
+- val AUC: 0.4847 → 0.5088. OOF AUC: 0.7055.
+- Submission round-trip: 5/5 G1–G6 PASS, predictions std=0.1006 (range [0.088, 0.685]), mean=0.1252 (prior 0.124와 거의 동일 = 우연한 well-calibration).
+
+VERDICT (H001)
+- Status: supported (anchor 자격 충족, claim_scope=demo-only).
+- P1 (NaN-free): ✅
+- P2 (predictions std ≥ 0.01): ✅ (0.1006)
+- P3 (overfit gap): ⚠️ inconclusive — train AUC 미측정.
+- P4 (G1–G6): ✅ 5/5.
+- P5 (OOF ≥ 0.50): ✅ (0.7055).
+
+FINDINGS
+- F-1: val AUC < OOF AUC 역전 — label_time cutoff val (90 rows from 13-min window tail) 이 random user-holdout OOF (100 rows label_time-uniform) 보다 훨씬 어려운 task. early stopping 신호의 신뢰성 의문.
+- F-2: T=16, d_model=64 organizer 디폴트 viable.
+- F-3: emb_skip_threshold=1M 에서 seq_c 4/11 features skip — high-cardinality dominant 도메인.
+- F-4: trainer.py / train.py 의 tqdm + tensorboard 의존성을 graceful fallback 처리 — eval container 에서도 안전.
+
+PROPOSED CLAUDE.md UPDATES (verdict.md에 명시)
+- §10.X early-stopping 신호 신뢰성 — H002 측정 후 confirm.
+- §10.Y reinit_cardinality_threshold=0 디폴트 회피 — 매 epoch 95개 embedding reset이 의도와 다름.
+
+ARTIFACTS
+- experiments/E000_unified_baseline_demo/ckpt/{model.pt, schema.json, train_config.json, metrics.json, global_step26.layer=2.head=4.hidden=64.best_model/}
+- hypotheses/H001_unified_baseline_full/verdict.md (status=supported).
+- experiments/INDEX.md, hypotheses/INDEX.md 갱신.
+
+NEXT (iter-03)
+- 사용자 합의 후 cloud T2/T3로 본 baseline 재학습 (full data 도착 또는 demo 100 epoch).
+- H002 (LightGBM tabular control) 또는 H003 (OneTrans NS mixed causal) 착수.
+- F-1 측정 ablation 별도 실험.
+
+OPEN QUESTIONS (carry-over from iter-01)
+- 채점 시스템 wall-clock budget? 본데이터 schema?
+- 2026 metric AUC vs HR/NDCG?
+- Full-data 도착 시점/경로?
+- 클라우드 학습 어디서 돌지?
+
+OPEN QUESTIONS
+- 채점 시스템 wall-clock budget? 본데이터 schema가 demo_1000과 동일?
+- 2026 metric이 AUC인지 HR/NDCG인지?
+- Full-data 도착 시점/경로?
+- 클라우드 학습 어디서 돌지 (사용자와 합의 필요).
+
+================================================================================
+2026-04-30 — iter — H009 verdict (REFUTED interference) + H010 scaffold
+================================================================================
+
+CONTEXT
+- H009 (combined H007 candidate xattn + H008 DCN-V2 fusion swap) 클라우드 학습 + inference 완료.
+- 사용자 결정: anchor recalibration H010 우선 (mechanism class rotation 보다 ground truth 확보가 cost-effective).
+
+EXECUTION
+- H009 결과 분석: Platform AUC 0.83644 (vs H008 0.8387 −0.0023pt, vs H007 0.8352 +0.0012pt).
+  - OOF 0.8595 / platform 0.8364 → classic overfit signature (OOF +, platform −).
+  - OOF-platform 갭 H008 1.98pt → H009 2.31pt (cohort effect 다시 벌어짐).
+  - patience=3 trigger 안 됨 (10 epoch full, capacity 증폭이 plateau 늦춤).
+  - wall 3시간 36분, inference 259초.
+- H009 verdict.md 작성 (REFUTED interference). predictions.md decision tree "interference" 분기 적용 — strongest-single (H008) 기준 명확한 negative.
+- OneTrans (H004) 검토: smoke-only (5분), submission AUC 0.5 (fallback) — 사실상 검증 안 됨. 추출 가능 idea (NS→S xattn, mixed causal mask) backlog 추가.
+- H010 = anchor_recalibration_extended scaffold:
+  - 6 hypothesis docs + card.yaml + training_request.md + upload/run.sh.
+  - mechanism mutation 0, envelope only (num_epochs 1→10, train_ratio 0.05→0.3, patience 5→3).
+  - 코드 패키지 PENDING_BUILD (original_baseline/upload/ 11 파일 카피 다음 turn).
+
+VERDICT (H009)
+- REFUTED — interference vs strongest single (H008).
+- F-1 overfit signature, F-2 interference 위치 가설, F-3 anchor 정확값 의존성 정량 노출 → H010 1순위 confirmed, F-4 H008 still champion, F-5 cost cap 압박 ~14h.
+
+ARTIFACTS
+- hypotheses/H009/verdict.md (REFUTED interference).
+- hypotheses/H010_anchor_recalibration_extended/{problem, challengers, lit_refs, transfer, predictions, verdict}.md.
+- experiments/H010_anchor_recalibration_extended/{card.yaml, training_request.md, upload/run.sh}.
+- hypotheses/INDEX.md + experiments/INDEX.md 갱신.
+
+NEXT (iter+1)
+- H010 = anchor recalibration 폐기 (사용자 가치 reassessment 후).
+- H010 = NS→S xattn 으로 재정의 (paper-grade, H007 일반화).
+
+================================================================================
+2026-04-30 — iter — H010 재정의 = NS→S full bidirectional xattn (paper-grade)
+================================================================================
+
+CONTEXT
+- 사용자 reassessment: anchor recalibration 은 measurement H, mechanism lift 0. cost-effective 작음 (anchor 정확값 의존성은 H011 부터 H008 paired 비교 가 주가 되면 영향 작음). mechanism class lift 우선 가치 align.
+- (α) 옵션 결정: H010 재정의 + build pipeline 강화 동시.
+
+EXECUTION
+- old H010 (anchor_recalibration_extended) → backlog rename:
+  - hypotheses/anchor_recalibration_extended_backlog/
+  - experiments/anchor_recalibration_extended_backlog/
+- 새 H010 = ns_to_s_xattn scaffold (paper-grade, OneTrans 추출):
+  - mechanism: NS-tokens (N_NS=7) 가 S-tokens (4 도메인 concat L_total=384) bidirectional cross-attend.
+  - H007 (1-token candidate xattn) 의 N_NS-token 일반화.
+  - H008 anchor (DCN-V2 fusion) 위 single mutation stacking.
+  - 통합 위치: fusion 이전, NS dimension 변경 없음 → H009 위치 충돌 회피 by 설계.
+  - paper source: OneTrans (arXiv:2510.26104, Tencent WWW 2026) — NS→S bidirectional half 만 채택. backbone replacement 아님 (mechanism injection).
+  - §10.9 attn entropy active 적용 (threshold 0.95 × log(384) ≈ 5.65).
+- 9 파일 작성:
+  - hypotheses/H010_ns_to_s_xattn/{problem, challengers, lit_refs, transfer, predictions, verdict-pending}.md.
+  - experiments/H010_ns_to_s_xattn/{card.yaml, training_request.md, upload/run.sh}.
+- INDEX 갱신: Active Pipeline H010 slug 변경 (anchor_recalibration → ns_to_s_xattn). backlog 재정렬 (anchor recalibration backlog 보존).
+
+PREDICTED (H010)
+- super-additive Δ vs H008 ≥ +0.005pt → paper-grade lift, NS×S 통합 가치 (Platform ≥ 0.8437).
+- additive Δ vs H008 ∈ [+0.001, +0.005pt] (Platform ∈ [0.8397, 0.8437]).
+- noise Δ vs H008 ∈ [−0.001, +0.001pt] (mechanism 일반화 가치 marginal).
+- interference Δ vs H008 < −0.001pt → REFUTED, 위치 충돌 회피 설계 가설 무효.
+- binary: Δ vs anchor < +0.5pt → REFUTED.
+
+ARTIFACTS
+- hypotheses/H010_ns_to_s_xattn/ (6 docs).
+- experiments/H010_ns_to_s_xattn/{card.yaml, training_request.md, upload/run.sh}.
+- hypotheses/INDEX.md + experiments/INDEX.md 갱신.
+- old H010 anchor recalibration → backlog rename 보존.
+
+NEXT (iter+1)
+- (1) H010 코드 패키지 빌드 완료 (이번 turn).
+- (2) build pipeline 강화는 별도 turn (다음).
+- (3) 사용자 launch — Taiji extended envelope.
+
+================================================================================
+2026-04-30 — iter — H010 코드 패키지 BUILT (NS→S xattn 통합)
+================================================================================
+
+CONTEXT
+- 사용자 결정: (1) H010 코드 패키지 빌드 먼저 진행. build pipeline 강화는 다음 turn.
+
+EXECUTION
+- 12 파일 빌드:
+  - cp H008/upload/ 11 파일 (run.sh 제외) byte-identical → H010/upload/.
+  - run.sh 이미 작성됨 (3 flags baked).
+  - 5 파일 변경 (model.py, train.py, infer.py, README.md; trainer.py byte-identical).
+- model.py 변경 (총 6 Edits):
+  - NSToSCrossAttention 클래스 추가 (~80 lines, OneTransBlock 다음).
+  - MultiSeqHyFormerBlock __init__ 인자 3 + self.use_ns_to_s_xattn + ns_xattn instance.
+  - MultiSeqHyFormerBlock forward step 1.5 추가 (NS xattn applied after seq encoders, before query decoder).
+  - PCVRHyFormer __init__ 인자 2 + self.use_ns_to_s_xattn + blocks 호출 args 3 (use_ns_to_s_xattn, ns_xattn_num_heads, log_attn_entropy).
+  - collect_attn_entropies 확장 (hyformer + use_ns_to_s_xattn 분기 추가).
+- train.py 변경 (4 Edits):
+  - argparse 2 flags 추가.
+  - model_args 2 keys 추가.
+  - entropy 분기 확장 (onetrans OR use_ns_to_s_xattn).
+  - n_tokens 계산 분기 (NS xattn = sum(seq_max_lens) only, OneTrans = sum + num_ns + 1).
+- infer.py 변경: cfg.get 2 keys 추가.
+- README.md 변경: H010 정체성 + 통합 위치 + sanity 결과.
+- tar.gz 빌드: 65 KB.
+- Sanity:
+  - Syntax (ast.parse) OK 3 files.
+  - NSToSCrossAttention dummy forward (d=64, h=4): output shape (2, 7, 64), entropy 4.8947 (random input below threshold 5.65), params 16,896 (transfer.md §⑥ 예상 ~16,640 일치).
+
+VERDICT (build)
+- Status: BUILT (이전: scaffold).
+- code_package_status: BUILT.
+- card.yaml status: ready.
+- INDEX status: ready (12 files + tar.gz, sanity passed).
+
+ARTIFACTS
+- experiments/H010_ns_to_s_xattn/upload/ (12 files).
+- experiments/H010_ns_to_s_xattn/upload.tar.gz (65 KB).
+- card.yaml + training_request.md (build status BUILT, manifest, sanity).
+- INDEX 갱신 (status ready).
+
+NEXT (iter+1)
+- (1) 사용자 launch sanity dry-run (선택): `bash run.sh --num_epochs 1 --batch_size 32 --train_ratio 0.05` — NaN-free + NSToSCrossAttention/DCNV2CrossBlock init 로그 확인.
+- (2) Taiji extended envelope launch (~2.5-3.5h wall).
+- (3) 결과 시나리오 분기:
+    - super-additive (Δ vs H008 ≥ +0.005pt) → H010 = 새 anchor, H011 = orthogonal axis.
+    - additive (Δ vs H008 ∈ [+0.001, +0.005pt]) → H010 = 새 anchor, H011 = 다른 axis.
+    - noise (Δ vs H008 ∈ [−0.001, +0.001pt]) → H011 = orthogonal axis or NS xattn sub-H.
+    - interference (Δ vs H008 < −0.001pt) → REFUTED, NS xattn 통합 위치 변경 sub-H.
+    - REFUTED (Δ vs anchor < +0.5pt) → H011 = aligned pair encoding or multi_domain_fusion.
+- (4) build pipeline 강화 (별도 turn 또는 학습 wall 동안 병행) — overlay 패턴 + 1-command build.
+
+OPEN QUESTIONS
+- (carry-over) 채점 wall-clock / 본데이터 schema / metric / full-data / 클라우드.
+- (new) NSToSCrossAttention 의 random-input entropy 4.89 가 trained model 에서 충분히 sparse 될지 (trained pattern 5.65 below 유지?) — 결과 시 metrics.json attn_entropy_per_layer 확인.
+- (new) per-block NS xattn (num_hyformer_blocks=2 → 2× 16K=32K params) 이 sample-scale 에서 충분히 학습되는지.
+
+================================================================================
+2026-04-30 — iter — H010 verdict (PASS — additive) + H011 = orthogonal axis
+================================================================================
+
+CONTEXT
+- H010_ns_to_s_xattn 클라우드 학습 + inference 완료. Taiji 로그 paste.
+- 사전 가설: OneTrans NS→S bidirectional cross-attention 직접 구현, H008 anchor 위 single mutation stacking, H009 위치 충돌 회피 by 설계 (NS-only enrichment, anchor 입력 byte-identical).
+
+EXECUTION
+- 학습 wall: 3시간 44분 54초 (H008 3.7h, H009 3.6h 와 동급).
+- Inference wall: 297.02초 (H008 220초 +35%, H009 259초 +14%) — NSToSCrossAttention 1 layer latency cost.
+- OOF AUC: 0.8596 / OOF LogLoss: 0.2323.
+- attn_entropy_per_layer: [0.8127, 0.8133], threshold 5.6531, violation=False.
+- **Platform AUC: 0.840771 (eval auc)** — 새 champion.
+- Δ vs anchor (~0.83X): +0.7~+1.1pt → §17.3 +0.5pt 통과.
+- Δ vs H008 (0.8387, prior champion): **+0.0021pt** → additive [+0.001, +0.005pt] 분류.
+
+VERDICT (H010)
+- Status: **PASS — additive**.
+- F-1: NS-only enrichment stacking 안전 (anchor 입력 byte-identical) → H009 interference 회피 검증.
+- F-2: paper-grade source (OneTrans NS→S half) sample-scale 작동.
+- F-3: attn entropy 0.81 = threshold 의 14% (highly selective routing, predicted 보다 4× sparse).
+- F-4: champion 갱신 + anchor 갱신 (H011+ control = H010, H008 carry-forward).
+- F-5: OOF-platform 갭 H009 2.31pt 역행 → H010 1.88pt 회복.
+- F-6: §17.6 cap 압박 (~18h 누적) → fp16/batch=512 권장.
+
+FINDINGS
+- H010 F-1: 통합 위치 (어느 텐서가 변경되는가) 가 stacking 성패 결정. NS-only enrichment = safe pattern. 향후 stacking H 의무 분석.
+- H010 F-2: OneTrans NS→S half 단독 추출만으로도 sample-scale extended 측정 가능 lift. paper 100M user 규모 미도달 환경에서 minimum viable form 작동.
+- H010 F-3: NS-tokens 의 selective routing (e^0.81 ≈ 2 / 384 tokens) 작동. §10.9 threshold 의 보수성 노출.
+- H010 F-4: anchor 갱신 (H010 0.8408). H008 0.8387 carry-forward control.
+- H010 F-5: 통합 위치 가 cohort fit (OOF-platform 갭) 에도 영향.
+- H010 F-6: cost 누적 ~18h, cap 압박.
+
+ARTIFACTS
+- experiments/H010_ns_to_s_xattn/verdict.md (신규).
+- experiments/H010_ns_to_s_xattn/training_result.md (신규, raw metrics.json blob 도착 후 보강).
+- hypotheses/H010_ns_to_s_xattn/verdict.md (PENDING → done, P1–P6 + Findings + Carry-forward).
+- experiments/INDEX.md (H010 행 갱신, anchor pair / cost 섹션 갱신).
+- hypotheses/INDEX.md (Active Phase + Active Anchor + Active Pipeline + Recent Findings + Archive + Backlog 갱신).
+- progress.txt (본 블록).
+- (pending) experiments/H010_ns_to_s_xattn/metrics.json — 사용자 raw paste 시 verbatim 저장.
+
+NEXT (iter+1)
+- **H011 권장 = aligned `<id, weight>` pair encoding** (orthogonal axis, CLAUDE.md §3 / §4.8 mandate, interference 위험 0).
+  - 후보 fid pairs: {61–66, 89–91}.
+  - primary_category: `feature_engineering` 또는 `interaction_encoding` (신규).
+  - control = H010 (Platform 0.8408). H008 carry-forward.
+- 대안 H011 = multi_domain_fusion (MMoE/PLE, orthogonal axis).
+- §10.7 rotation: target_attention 직전 2회 (H009/H010 가 포함) → H011 차단 적용.
+- 사용자 결정 후 hypotheses/H011_*/ scaffold (problem/challengers/transfer/predictions/lit_refs/verdict 6 files).
+
+OPEN QUESTIONS
+- (carry-over) 채점 wall-clock / 본데이터 schema / metric / full-data / 클라우드 비용.
+- (new) H010 entropy 0.81 — collapse 가능성 vs 도메인-aware hard routing 분리 측정 (sub-H, attention map snapshot).
+- (new) full-data 도착 시 H010 NS→S xattn 의 super-additive 가능성 (paper-grade lift 도달 여부).
+- (new) raw metrics.json paste — best_step / val_AUC / config_sha256 / git_sha 확인 (sanity gate 재검증).

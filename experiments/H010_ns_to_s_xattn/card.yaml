@@ -1,0 +1,130 @@
+id: H010_ns_to_s_xattn
+hypothesis_id: H010_ns_to_s_xattn
+slug: ns_to_s_xattn
+status: ready
+compute_tier: T2.4 extended (10ep × 30%, patience=3) ~2.5-3.5h
+claim_scope: "OneTrans NS→S bidirectional cross-attention 직접 구현 (paper-grade). H007 (1-token candidate xattn) 의 N_NS-token 일반화. H008 anchor (DCN-V2 fusion) 위 single mutation stacking. 통합 위치 = fusion 이전, NS dimension 변경 없음 → H009 위치 충돌 회피 by 설계."
+
+control: original_baseline (anchor platform AUC ~0.83X) + H008 paired (champion 0.8387)
+treatment: |
+  H008 envelope + H008 mechanism (DCN-V2 fusion) byte-identical. PLUS
+  --use_ns_to_s_xattn 활성. 신규 클래스 NSToSCrossAttention:
+    Input: ns_tokens (B, N_NS=7, D), s_tokens_concat (B, L_total=384, D)
+           (4 도메인 a 64 + b 64 + c 128 + d 128), padding_mask (B, L_total).
+    Pre-LN 분리 (LN(Q) + LN(K)/LN(V)).
+    Multi-head cross-attention: Q=NS, K=V=S, 4 heads.
+    Output: enriched NS tokens (B, 7, D) — NS dimension 변경 없음.
+    Residual + 진단 entropy logging (§10.9 룰 적용).
+  통합 위치: per-domain seq encoder 출력 → S tokens concat → NSToSCrossAttention
+  → enriched NS → 기존 query decoder (per-domain Nq=2) + DCN-V2 fusion (그대로).
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full                    # H010 fusion_type=dcn_v2 라 영향 없음
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256
+  num_epochs: 10
+  patience: 3                              # H008 F-4 carry-forward
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.3
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+  fusion_type: dcn_v2                      # H008 anchor 그대로
+  dcn_v2_num_layers: 2                     # H008 anchor 그대로
+  dcn_v2_rank: 8                           # H008 anchor 그대로
+  use_ns_to_s_xattn: true                  # H010 NEW: NS→S bidirectional xattn
+  ns_xattn_num_heads: 4                    # H010 NEW: default = num_heads
+  log_attn_entropy: true                   # H010 NEW: §10.9 룰 active 적용
+
+run_command: bash experiments/H010_ns_to_s_xattn/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 150                     # ~2.5-3.5시간 with patience=3
+
+falsification:
+  P1: NaN abort or non-finite best_val_AUC (NSToSCrossAttention dispatch 오류)
+  P2: Δ vs anchor < +0.5pt platform AUC
+  P2_sub: Δ vs H008 < −0.001pt (interference, 위치 충돌 회피 설계 가설 무효)
+  P3: attn entropy ≥ 5.65 (§10.9 abort)
+  P4: any §18 인프라 회귀
+  P5: not falsifying — val ↔ platform alignment 보너스
+  P6: not falsifying — mechanism check 보조 신호
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD
+  total_param_count: TBD                   # ~198M (H008) + 16K (NSToSCrossAttention) ≈ 198M
+
+mutation_class:
+  axis: target_attention
+  type: stacking-on-champion (H008 anchor 위 single mutation)
+  rotation: target_attention 재진입정당화 — H007 일반화 + paper-grade (OneTrans NS→S 직접)
+
+infra_inheritance:
+  - §18 모든 룰 inherit (H008 패키지 over-overlay)
+  - infer.py 추가 cfg keys (use_ns_to_s_xattn, ns_xattn_num_heads, log_attn_entropy) read-back
+  - §10.9 attn entropy active 적용 (threshold 0.95 × log(384) ≈ 5.65)
+
+carry_forward_from_prior:
+  - H007 F-1: target_attention mechanism (1-token candidate) PASS marginal — 본 H 일반화
+  - H007 F-2: val ↔ platform 정합 expected
+  - H008 F-1: DCN-V2 fusion (interaction axis) PASS, anchor on champion
+  - H008 F-4: patience=3 + early stop aggressive
+  - H009 F-1: stacking interference signature 직접 확인 → 본 H 위치 충돌 회피 설계
+  - H009 F-2: interference 위치 가설 → 본 H 통합 위치 (fusion 이전, NS dimension 변경 없음)
+  - H004 F-1: §10.9 룰 active 적용 패턴 (attn entropy 측정 + threshold)
+  - §18 인프라 룰
+
+decision_tree_post_result:
+  super_additive: |
+    Δ vs anchor ≥ +0.5pt + Δ vs H008 ≥ +0.005pt + P3/P4 PASS →
+    H010 PASS paper-grade. anchor 갱신 (H010 = 새 baseline).
+    H011 = orthogonal axis (multi_domain_fusion MMoE/PLE 또는 aligned <id, weight> pair encoding).
+  additive: |
+    Δ vs anchor ≥ +0.5pt + Δ vs H008 ∈ [+0.001, +0.005pt] →
+    H010 PASS. anchor 갱신. H011 = 다른 axis 탐험.
+  noise: |
+    Δ vs anchor ≥ +0.5pt + Δ vs H008 ∈ [−0.001, +0.001pt] →
+    H010 PASS marginal. anchor 갱신 보류. H011 = orthogonal axis 또는 NS xattn sub-H.
+  interference: |
+    Δ vs H008 < −0.001pt → REFUTED.
+    transfer.md 위치 충돌 회피 설계 가설 무효. anchor 갱신 안 함.
+    H011 = NS xattn 통합 위치 변경 sub-H 또는 다른 mechanism class.
+  refuted: |
+    Δ vs anchor < +0.5pt → REFUTED.
+    target_attention mechanism class 일반화 가치 의문.
+    H011 = orthogonal axis (aligned pair encoding 또는 multi_domain_fusion).
+  attn_entropy_violation: |
+    P3 fail (entropy ≥ 5.65) → §10.9 abort. sample-scale 한계 또는 NS query semantic 약함.
+    NS-token granularity 변경 (5+2 → 8+4) 또는 hard routing sub-H.
+  infra_regression: |
+    P4 fail → §18 회귀. infer.py cfg.get 추가 부분 디버깅.
+
+code_package_status: BUILT
+build_artifacts:
+  - experiments/H010_ns_to_s_xattn/upload/        # 12 files
+  - experiments/H010_ns_to_s_xattn/upload.tar.gz  # 65 KB
+sanity_checks:
+  - syntax: "ast.parse OK for model.py / train.py / infer.py"
+  - dummy_forward: "NSToSCrossAttention(d=64, h=4) → (2, 7, 64), entropy=4.8947 (random input, threshold 5.65), params=16896"

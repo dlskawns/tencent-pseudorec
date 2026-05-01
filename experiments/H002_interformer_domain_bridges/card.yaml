@@ -1,0 +1,63 @@
+id: H002_interformer_domain_bridges
+hypothesis_id: H002_interformer_domain_bridges
+slug: interformer_domain_bridges
+status: pending
+compute_tier: Taiji platform (organizer mode + bridge args)
+claim_scope: "InterFormer-style inter-domain bridges in MultiSeqHyFormerBlock; expect Δ ≥ +0.5pt val_AUC vs E_baseline_organizer (0.8251)."
+
+control_exp: E_baseline_organizer (val_AUC=0.8251)
+treatment: |
+  Same organizer-pure baseline (row-group split, no OOF, train_ratio=0.05,
+  seq_max_lens halved) PLUS 12 InterFormer bridges per HyFormer block.
+  Bridges = low-rank (r=4) + gated (sigmoid, α=-2 init), pooled-then-broadcast.
+
+config:
+  use_label_time_split: false              # organizer split
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256
+  num_epochs: 1
+  patience: 5
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.05
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  enable_inter_domain_bridges: true        # H002 NEW
+  bridge_rank: 4                           # H002 NEW
+  bridge_gate_init: -2.0                   # H002 NEW
+
+run_command: bash experiments/H002_interformer_domain_bridges/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 30-45
+
+falsification:
+  P1: NaN abort or non-finite best_val_AUC
+  P2: Δ < +0.5pt val_AUC vs control (= val_AUC < 0.8301)
+  P3: avg sigmoid(gate) < 0.15 across 12 bridges (no learning signal — noted, P2 still primary)
+  P4: any G1-G6 fail
+  P5: no falsification (bonus measurement)
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD          # filled after run
+  bridge_param_count: 12312   # verified locally on demo
+  total_param_count: TBD      # production schema → larger than demo's 198M

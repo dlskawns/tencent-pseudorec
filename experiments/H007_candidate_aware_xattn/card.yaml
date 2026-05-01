@@ -1,0 +1,98 @@
+id: H007_candidate_aware_xattn
+hypothesis_id: H007_candidate_aware_xattn
+slug: candidate_aware_xattn
+status: scaffold
+compute_tier: T2.4 smoke (~5min) → optional extended (10ep × 30%, ~5h)
+claim_scope: "Per-domain candidate-aware cross-attention pooling (DIN/CAN/SIM/TWIN/HSTU/OneTrans family idea, modern multi-head xattn implementation). PCVRHyFormer-anchor (original_baseline) 위 첫 target_attention 적용. §17.4 rotation 추가 충족."
+
+control: original_baseline (anchor platform AUC ~0.83X)
+treatment: |
+  같은 organizer-pure baseline + leak-fix smoke envelope (label_time split,
+  10% user OOF, train_ratio=0.05, num_epochs=1, halved seq_max_lens, NS=5+2=7,
+  num_queries=2, BCE) PLUS `--use_candidate_summary_token`. 신규 클래스
+  `CandidateSummaryToken` (Pre-LN multi-head cross-attention) per-domain
+  적용. candidate token = (item_ns + item_dense_tok) mean pool. seq 시작에
+  prepend (L → L+1). 다운스트림 query decoder + RankMixer 자동 candidate-aware.
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256
+  num_epochs: 1
+  patience: 5
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.05
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+  use_candidate_summary_token: true        # H007 NEW (default False → True)
+  candidate_summary_num_heads: 4           # H007 NEW (default = num_heads)
+
+run_command: bash experiments/H007_candidate_aware_xattn/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 5
+
+falsification:
+  P1: NaN abort or non-finite best_val_AUC
+  P2: Δ < +0.5pt platform AUC vs anchor
+  P3: candidate attention uniform collapse (instrumentation sub-H)
+  P4: any §18 인프라 회귀 (heuristic fallback / heartbeat 없음 / platform 0.5)
+  P5: not falsifying — bonus val ↔ platform alignment
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD
+  total_param_count: TBD                   # ~198M + 50K candidate xattn
+
+mutation_class:
+  axis: target_attention
+  type: one-mutation                       # CandidateSummaryToken 한 클래스 추가 + flag 분기
+  rotation: target_attention (first)       # §17.4 추가 충족
+
+infra_inheritance:
+  - §18.1 batch_size 생성자 인자 (256 default, override 금지)
+  - §18.2 dim==1 universal handler (to_pylist + isinstance)
+  - §18.3 진단 로그 (MODEL_OUTPUT_PATH, ckpt_dir, WARNING/FALLBACK/OK)
+  - §18.4 INFER_BATCH_SIZE=256, INFER_NUM_WORKERS=2, no autocast, PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+  - §18.5 make_schema 모든 list-type variant
+  - infer.py 새 cfg key (use_candidate_summary_token, candidate_summary_num_heads) 자동 read-back
+
+carry_forward_from_archive:
+  - H006 verdict F-1: random/probability-based selection 한계 → 본 H candidate-aware 로 이동
+  - H006 verdict F-3: paired Δ 는 platform AUC 으로만
+  - H006 verdict F-5: §18 인프라 룰 inherit
+
+decision_tree_post_result:
+  pass: |
+    Δ ≥ +0.5pt platform + P3/P4 PASS → H007 PASS. anchor 갱신 또는 H007-anchor.
+    H008 = candidate-aware 변형 (CAN co-action 또는 multi-layer target attention).
+  weak_signal: |
+    Δ ∈ [+0.0, +0.5pt) + P4 PASS at smoke → extended envelope retry (10ep × 30%).
+  break: |
+    Δ < 0 → candidate token 구성 또는 prepend 위치 문제. ablation H.
+  infra_regression: |
+    P4 fail → §18 회귀. infer.py 의 새 cfg 추가 부분 디버깅 우선.
+
+code_package_status: PENDING_BUILD          # next turn: model.py + train.py + infer.py 통합

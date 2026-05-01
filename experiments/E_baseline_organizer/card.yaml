@@ -1,0 +1,53 @@
+id: E_baseline_organizer
+hypothesis_id: H001_unified_baseline_full
+slug: baseline_organizer_pure
+status: pending
+compute_tier: Taiji platform
+claim_scope: "Reference floor — organizer-supplied baseline as-is, zero of our patches except path-default boilerplate."
+
+control: null
+treatment: "Organizer's competition/run.sh exactly: rankmixer NS tokenizer + num_queries=2 + emb_skip_threshold=1M + num_workers=8. No --use_label_time_split, no OOF holdout, no --split_seed. Trainer falls back to get_pcvr_data() row-group split."
+
+config:
+  use_label_time_split: false   # CRITICAL — disables our v2 path
+  oof_user_ratio: 0.0            # not used
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256
+  num_epochs: 10        # user-overridable; organizer default is 999 + early stop
+  patience: 5
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 8
+
+run_command: bash experiments/E_baseline_organizer/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: TBD
+
+note: |
+  Same model + hyperparameters as E000 but uses organizer's row-group
+  validation split (get_pcvr_data) instead of our label_time-aware
+  inline filter (get_pcvr_data_v2). No OOF holdout. metrics.json reports
+  best_val_AUC only (no best_oof_AUC).
+
+  Used to establish:
+  - Reference floor: how organizer baseline performs as-shipped on full data.
+  - Comparison anchor: E000 (our patched) result vs E_baseline_organizer
+    (pure) tells us if our v2 split + OOF affects the numbers materially.
+
+  Not part of our anti-LM hypothesis pipeline (CLAUDE.md §17). Treat as
+  reference reading.

@@ -1,0 +1,105 @@
+id: H009_combined_xattn_dcn_v2
+hypothesis_id: H009_combined_xattn_dcn_v2
+slug: combined_xattn_dcn_v2
+status: scaffold
+compute_tier: T2.4 extended (10ep × 30%, patience=3) ~2-3h
+claim_scope: "H007 candidate-aware xattn (sequence axis) + H008 DCN-V2 fusion swap (interaction axis) 동시 적용. additivity 가정 검증 + §0 두 축 동시 강화 first direct verification. anchor (original_baseline) 위 stacking. §17.4 hybrid 정당화 (stacking, 새 mechanism 아님)."
+
+control: original_baseline (anchor platform AUC ~0.83X)
+treatment: |
+  같은 anchor envelope (label_time split, 10% user OOF, train_ratio=0.3,
+  num_epochs=10, patience=3, halved seq_max_lens, NS=5+2=7, num_queries=2,
+  BCE) PLUS 두 mutation 동시 적용:
+    1. H007 mechanism: --use_candidate_summary_token
+       (per-domain CandidateSummaryToken, candidate=item_ns+item_dense mean
+        pool, prepend to seq → L+1).
+    2. H008 mechanism: --fusion_type dcn_v2 --dcn_v2_num_layers 2 --dcn_v2_rank 8
+       (MultiSeqHyFormerBlock step 3 fusion: RankMixerBlock → DCNV2CrossBlock).
+  두 mechanism 모두 MultiSeqHyFormerBlock 안 작동 → block-level gradient
+  sharing 직접 충족 (§0 P1).
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full                    # H009 fusion_type=dcn_v2 라 영향 없음
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256                          # 옵션 A 적용 시 512 (별도)
+  num_epochs: 10
+  patience: 3                              # H008 F-4 carry-forward (early stop aggressive)
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2                           # 옵션 A 적용 시 4 (별도)
+  buffer_batches: 4
+  train_ratio: 0.3
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+  use_candidate_summary_token: true        # H007 mechanism 활성
+  candidate_summary_num_heads: 4           # default = num_heads
+  fusion_type: dcn_v2                      # H008 mechanism 활성
+  dcn_v2_num_layers: 2                     # polynomial degree 3
+  dcn_v2_rank: 8                           # low-rank D/8
+  reinit_sparse_after_epoch: 1             # 옵션 A 적용 시 999 (별도)
+
+run_command: bash experiments/H009_combined_xattn_dcn_v2/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 120                     # ~2시간 with patience=3, ~3시간 without
+
+falsification:
+  P1: NaN abort or non-finite best_val_AUC
+  P2: Δ < +0.5pt platform AUC vs anchor
+  P3: 한 mechanism 또는 양쪽 degenerate (weights ≈ 0)
+  P4: any §18 인프라 회귀
+  P5: not falsifying — bonus additivity 정량 측정
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD
+  total_param_count: TBD                   # ~198M + 50K (candidate xattn) + 4K (DCN-V2)
+
+mutation_class:
+  axis: hybrid (target_attention + sparse_feature_cross)
+  type: stacking (sub-H of H007 + H008)
+  rotation: §17.4 hybrid 정당화 — stacking, 새 mechanism 아님
+
+infra_inheritance:
+  - §18 모든 룰 inherit (batch=256 default + PYTORCH_CUDA_ALLOC_CONF + universal handler + 진단 로그)
+  - infer.py: 두 cfg keys (use_candidate_summary_token + fusion_type 등) read-back
+
+carry_forward_from_prior:
+  - H007 F-1: candidate xattn (sequence axis) PASS marginal
+  - H008 F-1: DCN-V2 cross (interaction axis) PASS, +0.0035pt vs H007
+  - H008 F-3: additivity 검증 필요 → 본 H 핵심 측정
+  - H008 F-4: patience=3 + early stop aggressive
+
+decision_tree_post_result:
+  additive_pass: |
+    Δ ∈ [+0.005, +0.010pt] + P3/P4 PASS → H009 PASS additive 검증.
+    anchor 갱신 (H009 = 새 baseline). H010 = 다른 axis 탐험.
+  super_additive: |
+    Δ > +0.010pt → paper-grade 발견. multi-seed × 3 ablation H 우선.
+  sub_additive: |
+    Δ ∈ [+0.0035, +0.005pt] → mechanism interference. ablation H 로 통합 위치 재검토.
+  break: |
+    Δ < anchor → combined 가 baseline 보다 못함. lr/통합 위치/init scale H 후보.
+  infra_regression: |
+    P4 fail → §18 회귀. infer.py 디버깅.
+
+code_package_status: PENDING_BUILD          # 다음 turn: H007 mechanism + H008 mechanism merge

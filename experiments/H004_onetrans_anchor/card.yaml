@@ -1,0 +1,92 @@
+id: H004_onetrans_anchor
+hypothesis_id: H004_onetrans_anchor
+slug: onetrans_anchor
+status: scaffold
+compute_tier: T2.4 (Taiji platform smoke) → T3 (full data later)
+claim_scope: "OneTrans single-stream + mixed-causal backbone anchor — replaces PCVRHyFormer entirely. NOT a one-mutation; anchor exemption per §17.2."
+
+control_reference: E_baseline_organizer (PCVRHyFormer, val_AUC=0.8251)
+treatment: |
+  PCVRHyFormer 의 MultiSeqHyFormerBlock + per-domain TransformerEncoder + per-domain
+  MultiSeqQueryGenerator 통째로 폐기, OneTrans single-stream block 으로 교체:
+    - S-tokens: 4 도메인 시퀀스 이벤트 + 도메인 ID embedding (d_model=64).
+    - NS-tokens: RankMixerNSTokenizer 의 user=5 + item=2 = 7 tokens 재사용 (parameter-free).
+    - Candidate token: cand_* features → 1 token.
+    - Mixed causal mask:
+        S→S = causal upper-tri,
+        NS→S = bidirectional but j.timestamp < candidate.timestamp,
+        NS→NS = full,
+        Candidate → all up to candidate.timestamp.
+    - Pyramid pruning 미적용 (별도 H).
+  결함 A/B/C/D/E 패치 인프라 (dataset.py, train.py, trainer.py, infer.py)
+  H001 그대로 재사용 — model.py 의 backbone 부분만 교체.
+
+config:
+  use_label_time_split: true               # H001 결함 A 패치
+  oof_user_ratio: 0.10                     # H001 결함 B 패치 (seed=42)
+  backbone: onetrans                       # H004 NEW (router → OneTrans single-stream)
+  ns_tokenizer_type: rankmixer             # NS-token chunking 재사용
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 0                           # OneTrans 는 query decoder 없음 — disable
+  num_onetrans_layers: 2                   # PCVRHyFormer num_hyformer_blocks=2 와 paired
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  domain_id_embedding: true                # H004 NEW (4 도메인 differentiation)
+  use_pyramid_pruning: false               # H004 NEW (별도 H)
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256
+  num_epochs: 1
+  patience: 5
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.05                        # smoke
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  log_attn_entropy: true                   # H004 NEW (§10.9 룰 첫 active 적용)
+
+run_command: bash experiments/H004_onetrans_anchor/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 3-6                     # H002 2:47 + OneTrans 비슷한 ballpark
+
+falsification:
+  P1: NaN abort or non-finite best_val_AUC or attention dim mismatch
+  P2: val_AUC < 0.70 (hard fail — model not learning)
+  P3: any layer attn entropy >= 0.95 * log(N_tokens) (§10.9 룰)
+  P4: any G1-G6 fail
+  P5: not falsifying — bonus anchor pair stability measurement
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD                       # filled after run
+  total_param_count: TBD                   # ~198M expected (embedding tables dominant)
+
+anchor_exemption:
+  rule: "§17.2 one-mutation-per-experiment + §17.4 category rotation"
+  justification: |
+    H001 anchor (PCVRHyFormer) 와 동일하게 본 H 도 backbone 전체 replacement
+    이라 single mutation 정의 미적합. challengers.md §재진입정당화 + transfer.md
+    §⑤ 에 H002 verdict F-1/F-3 직접 인용으로 카테고리 재진입 정당화.
+  next_h_constraint: |
+    H005+ 부터 카테고리 rotation 의무 재가동. unified_backbones 4회 연속 차단.
+    H004 결과 도착 후 anchor 선택 (max(PCVRHyFormer, OneTrans)) → 약한 anchor archive.
+
+deferred_to_future_h:
+  - pyramid_pruning            # OneTrans 의 compute optimization
+  - merged_seq_stream          # per-domain S-token vs single merged stream
+  - ns_token_granularity       # user_ns_tokens=5, item_ns_tokens=2 변경
+  - longer_encoder_d_domain    # seq_d 1100 events tail 압축 (long_seq_retrieval 카테고리)
+  - switch_load_balance_loss   # token fusion 단계 (external_inspirations 카테고리)
+
+code_package_status: PENDING_BUILD          # 다음 턴에 사용자 합의 후 작성
