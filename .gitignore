@@ -1,0 +1,33 @@
+# OS / editor noise
+.DS_Store
+
+# Local assistant/session state
+.omc/
+.sisyphus/
+
+# Python environments and caches
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+
+# Local-only Claude settings (machine-specific)
+.claude/settings.local.json
+
+# Dataset binaries (keep schema/versioned metadata)
+data/*.parquet
+
+# Generated submission bundles at repo root
+submission_*.zip
+
+# Training/runtime outputs (generated)
+experiments/**/ckpt/
+experiments/**/logs/
+experiments/**/tf_events/
+experiments/**/work/
+
+# Generated cloud upload archive (keep source upload/ files)
+experiments/**/upload.tar.gz
+
+# Nested accidental local state inside experiments
+experiments/**/.omc/
