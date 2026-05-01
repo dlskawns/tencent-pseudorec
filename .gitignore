@@ -5,17 +5,31 @@
 .omc/
 .sisyphus/
 
+# Secrets / credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+
 # Python environments and caches
 .venv/
 .venv-*/
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+.ipynb_checkpoints/
 
 # Local-only Claude settings (machine-specific)
 .claude/settings.local.json
 
 # Dataset binaries (keep schema/versioned metadata)
-data/*.parquet
+data/**/*.parquet
 
 # Generated submission bundles at repo root
 submission_*.zip
