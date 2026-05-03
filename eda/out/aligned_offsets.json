@@ -1,0 +1,46 @@
+{
+  "per_fid": {
+    "61": {
+      "offset": 0,
+      "dim": 256
+    },
+    "62": {
+      "offset": 256,
+      "dim": 5
+    },
+    "63": {
+      "offset": 261,
+      "dim": 11
+    },
+    "64": {
+      "offset": 272,
+      "dim": 18
+    },
+    "65": {
+      "offset": 290,
+      "dim": 49
+    },
+    "66": {
+      "offset": 339,
+      "dim": 66
+    },
+    "87": {
+      "offset": 405,
+      "dim": 320
+    },
+    "89": {
+      "offset": 725,
+      "dim": 10
+    },
+    "90": {
+      "offset": 735,
+      "dim": 10
+    },
+    "91": {
+      "offset": 745,
+      "dim": 10
+    }
+  },
+  "total_dim": 755,
+  "source": "data/schema.json"
+}

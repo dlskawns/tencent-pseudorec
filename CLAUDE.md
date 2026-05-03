@@ -85,19 +85,100 @@
   | Item Int Features | 14 | int64 (13) + list<int64> (1) |
   | Domain Sequence Features | 45 | list<int64> (a=9, b=14, c=12, d=10) |
 - ID & Label: `user_id`, `item_id`, `label_type` (int32), `label_time` (int64), `timestamp` (int64). 5개 모두 nullable=False.
-- **Aligned `<id, weight>` 규약** (verified 2026-04-30, 출처: `competition/ns_groups.json` `_note_shared_fids` + `_note_user_dense`):
-  - `user_int_feats_{fid}` 와 `user_dense_feats_{fid}` 가 같은 fid 공유 시 align 되어 동일 entity/signal jointly 기술.
-  - **Verified shared (aligned) fids**: `{62, 63, 64, 65, 66, 89, 90, 91}` — 8 fids. ID 측 (user_int) 과 weight 측 (user_dense) 둘 다 존재.
-  - **Dense-only fids** (user_int 측 매칭 없음, aligned 효과 미적용): `{61, 87}`.
-  - **user_dense_feats flat layout**: 10 fids (`{61, 62, 63, 64, 65, 66, 87, 89, 90, 91}`) 의 multi-dim list 가 concat 되어 per-row **total_dim=918**. per-fid offset/dim 매핑은 `competition/dataset.py` 의 `_user_dense_plan` 참조.
-  - aligned fids 의 user_ns_groups 위치: U2 (`[48, 49, 89, 90, 91]`) + U7 (`[3, 4, 55–59, 62–66]`) — 비-aligned fids 와 섞여 있음. group-aware binding 필요.
-- Scalar user_int fids: `{1, 3, 4, 48–59, 82, 86, 92–109}` (35).
-- Array user_int fids: `{15, 60, 62–66, 80, 89–91}` (11).
-- Scalar item_int fids: `{5–10, 12–13, 16, 81, 83–85}` (13).
-- Array item_int fids: `{11}` (1).
-- Domain seq fids: `domain_a_seq_{38–46}` (9), `domain_b_seq_{67–79, 88}` (14), `domain_c_seq_{27–37, 47}` (12), `domain_d_seq_{17–26}` (10).
+### §3.1 fid (feature id) 개념
+- `fid` = 컬럼명의 숫자 suffix (대회 주최자가 feature 의미 익명화 후 숫자만 부여). 예: `user_int_feats_89` → fid=89. fid 는 1~109 범위 정수 (block 내 고유, 같은 fid 가 다른 block 에 동시 등장 가능 → aligned 규약).
+- **Block 별 fid 목록**:
+  - **Scalar user_int** (35 fids, `int64` per row): `{1, 3, 4, 48–59, 82, 86, 92–109}`. 단일 ID 1개.
+  - **Array user_int** (11 fids, `list<int64>` per row): `{15, 60, 62–66, 80, 89–91}`. 변동 길이 ID list.
+  - **Scalar item_int** (13 fids): `{5–10, 12–13, 16, 81, 83–85}`.
+  - **Array item_int** (1 fid): `{11}`.
+  - **User dense** (10 fids, `list<float>` per row): `{61–66, 87, 89–91}`. flat layout 으로 concat (아래 §3.3 참조).
+  - **Domain seq fids** (45 total, `list<int64>` per row, 도메인별):
+    - domain a: `{38–46}` (9, `domain_a_seq_{fid}`).
+    - domain b: `{67–79, 88}` (14, `domain_b_seq_{fid}`).
+    - domain c: `{27–37, 47}` (12, `domain_c_seq_{fid}`).
+    - domain d: `{17–26}` (10, `domain_d_seq_{fid}`).
+- **Time-stamp fids per domain** (`schema.json:seq.{domain}.ts_fid`): a→39, b→67, c→27, d→26.
 
-**검증되기 전엔 인용 금지**: 위 외 수치 (라벨 분포, 시퀀스 길이 통계, vocab overlap 등) 는 EDA로 직접 측정 후 `eda/out/*.json`에 기록하고 cite. tencent-cc/CLAUDE.md §3의 1년 전 스냅샷 수치는 재검증 후 사용.
+### §3.2 Aligned `<id, weight>` 규약 (verified 2026-04-30 ~ 2026-05-01)
+- 출처: `competition/ns_groups.json` (`_note_shared_fids`, `_note_user_dense`) + `eda/out/aligned_audit.json` + `eda/out/dense_dim_breakdown.json`.
+- `user_int_feats_{fid}` 와 `user_dense_feats_{fid}` 가 같은 fid 공유 시 align 되어 동일 entity/signal 의 ID 와 weight 를 jointly 기술.
+- **Verified shared (aligned) fids**: `{62, 63, 64, 65, 66, 89, 90, 91}` — 8 fids. 양쪽 모두 존재.
+- **Dense-only fids** (user_int 측 매칭 없음, aligned 효과 미적용): `{61, 87}`.
+- **Position-wise binding 가능** (Option A): aligned 8 fids 모두 demo_1000 1000/1000 rows 에서 `n_k == m_k == schema_dim_k` (int array length == dense slice dim). element-wise multiply at lookup 으로 직접 binding 가능.
+- **aligned fids 의 user_ns_groups 위치**: U2 `[48, 49, 89, 90, 91]` + U7 `[3, 4, 55–59, 62–66]` — 비-aligned fids 와 섞여 group-aware binding 필요.
+
+### §3.3 User dense — 3 patterns (verified 2026-05-01, 출처: `eda/out/dense_dim_breakdown.json`)
+
+| Pattern | fids | dim | full-row 비율 | 의미 (anonymized 가설) |
+|---|---|---|---|---|
+| **A. Fixed dense vector** (ID 없음, 순수 float vector) | 61 | 256 | 998/1000 | precomputed user embedding 또는 256-bucket histogram. |
+| | 87 | 320 | 985/1000 | 또 다른 320-d 고정 vector. |
+| **B. Fixed-K aligned profile** (paired ID + weight, 정확히 K 슬롯 = dim) | 89 | 10 | 945/1000 | 10-slot user categorical profile (예: top-10 categories with affinity). |
+| | 90 | 10 | 909/1000 | 같은 form 다른 dimension. |
+| | 91 | 10 | 550/1000 | secondary/optional profile (절반 user 만 보유). |
+| **C. Variable-length aligned list** (paired ID + weight, K ∈ [0, dim]) | 62 | 5 | mean=2.11 | 짧은 list (top-5 까지). |
+| | 63 | 11 | mean=2.56 | |
+| | 64 | 18 | mean=3.82 | |
+| | 65 | 49 | mean=5.71 | |
+| | 66 | 66 | mean=7.14 | 가장 큰 capacity, 가장 sparse. |
+
+- **flat layout** (`competition/dataset.py:_user_dense_plan`): 10 fids 의 multi-dim list 를 concat → per-row tensor `(B, total_dim)`. **demo_1000 실측 (`data/schema.json`) total_dim=755**. `ns_groups.json _note_user_dense` 의 918 은 다른 snapshot (이전 revision 또는 full-data) — demo_1000 작업 시 schema.json 우선.
+- mechanism 처리: A 는 `user_dense_proj` (단일 NS token); B+C 는 mask + (weighted) mean pool — variable-length 와 fixed-K 같은 코드 path 공유 (mask=0 padding 자동 무시).
+
+### §3.4 Label & Temporal facts (출처: `tencent-cc/eda/out/overview.json` + `semantics.json`, 같은 1000-row flat snapshot)
+
+- **Label distribution**: `label_type=1` 876 rows / `label_type=2` 124 rows (≈ **12.4% conversion rate**).
+- **Timestamp ranges**: 본 프로젝트 `eda/out/` 미산출 — 필요 시 재측정 (§3.6 gap list 참조).
+
+### §3.5 Domain sequence facts (출처: `tencent-cc/eda/out/semantics.json:per_feature_seq_length`, 같은 1000-row flat snapshot)
+
+도메인별 첫 fid 의 array length 분포 (도메인 안의 모든 fid 가 동일 row 단위로 align — 같은 user 에서 length 같음):
+
+| Domain | 첫 fid | p50 | p90 | max | frac_empty |
+|---|---|---|---|---|---|
+| a | `domain_a_seq_38` | 577.5 | 1562.1 | 1888 | 0.005 |
+| b | `domain_b_seq_67` | 405.0 | 1393.0 | 1952 | 0.012 |
+| c | `domain_c_seq_27` | 322.0 | 887.3 | 3894 | 0.002 |
+| d | `domain_d_seq_17` | 1035.5 | 2215.3 | 3951 | 0.080 |
+
+- 모든 도메인 p90 ≫ 100 → **long-seq retrieval (P2 phase) 의 motivation 직접 정량 근거**. 현재 P0/P1 envelope 는 truncate 64-128 (`seq_max_lens` arg).
+- domain d 가 p50/p90 모두 가장 길면서 frac_empty=0.08 (8% empty) 도 가장 높음 — **bimodal**: heavy-tail user 와 inactive user 양극 분포.
+- domain c 는 max=3894 로 outlier 있음 (p90 887 대비 4x).
+
+**Domain item-id Jaccard overlap** (출처: `eda/out/domain_facts.json`, sibling `tencent-cc/eda/out/deep.json` 카피):
+
+| Pair | intersection | union | jaccard |
+|---|---|---|---|
+| a vs b | 73,097 | 928,176 | **0.079** |
+| a vs c | 9,678 | 1,311,551 | **0.007** |
+| a vs d | 48,895 | 489,236 | **0.100** |
+| b vs c | 15,499 | 1,616,681 | **0.010** |
+| b vs d | 17,970 | 831,112 | **0.022** |
+| c vs d | 18,008 | 1,151,030 | **0.016** |
+
+→ 4 도메인이 거의 disjoint vocab (max overlap 10%, min 0.7%). **multi_domain_fusion (MMoE/PLE) expert specialization 자연 motivation**.
+
+**Target item in domain seq** (출처: `eda/out/domain_facts.json`, `target_item_in_domain_seq`):
+
+- domain a / b / d: 0 / 1000 rows (0%).
+- domain c: 4 / 1000 rows (0.4%).
+- any_domain: 4 / 1000 rows (**0.4%**).
+
+→ target item 이 user 의 어느 도메인 seq 에도 거의 안 등장. **H007 candidate-aware xattn PASS marginal 이었던 이유** (target 이 history 에 없으면 candidate-history attention 의 lift 작음). user 가 본 적 없는 새 item 추천 task — implicit collaborative filtering 에 가까움.
+
+### §3.6 검증 chain & EDA gaps
+
+- **검증되기 전엔 인용 금지**: 위 외 수치 (도메인 vocab overlap, item_id-domain seq match 비율 등) 는 EDA로 직접 측정 후 `eda/out/*.json` 에 기록하고 cite. tencent-cc/CLAUDE.md §3 의 1년 전 스냅샷 수치는 재검증 후 사용.
+- **본 프로젝트 `eda/out/` 산출 완료** (6 files): `aligned_offsets.json`, `array_lengths.json`, `aligned_audit.json`, `dense_dim_breakdown.json`, `dense_value_stats.json`, `domain_facts.json` (sibling 카피, H012 cold-start 시 산출).
+- **참조 가능한 sibling 결과** (`tencent-cc/eda/out/`, 같은 flat snapshot 검증, 읽기 전용): `overview.json`, `deep.json`, `semantics.json`. 인용 시 출처 명시 + §1 룰 준수 (쓰기 금지).
+- **EDA gaps**:
+  1. timestamp range / label-event gap 분포 (`label_minus_event_seconds`) — split 정합성 검증. **미해결** (sibling `tencent-cc/eda/out/semantics.json:label_minus_event_seconds` 인용 가능, 본 프로젝트 카피 미산출).
+  2. ~~domain vocab overlap (도메인 a/b/c/d 의 item_id 교집합)~~ — **resolved 2026-05-01** via `eda/out/domain_facts.json` (§3.5 본문 cite).
+  3. ~~user_dense fid 의 weight value 분포~~ — **resolved 2026-05-01** via `eda/out/dense_value_stats.json` (H011 gap #3 측정).
+  4. user_int array fids 의 positional ID semantics — **미해결** (pattern B 89/90/91 의 slot semantics 정밀화 필요). 우선순위 낮음.
+  5. ~~item_id 가 user 의 domain seq 에 등장하는 비율~~ — **resolved 2026-05-01** via `eda/out/domain_facts.json` (§3.5 본문 cite, any_domain=0.4%).
+- **운영 백로그 (LLM wiki, 비권위)**: `notes/llm/wiki/by_eda/eda_backlog_sample1000.md` — P0/P1/P2 EDA 실행 순서·산출물·완료기준.
 
 ---
 
@@ -201,6 +282,7 @@ tencent-cc2/
 |---|---|---|
 | `submission/infer.py` / `predictions.json` / 제출 패키징 | `notes/refs/submission_contract.md` | §13 + §14 |
 | `infer.py` / `dataset.py` / `make_schema.py` 작성·수정 | `notes/refs/inference_lessons.md` | §18 |
+| 새 H upload 패킷 ready 직전 (tar 전, training_request.md 제출 전) | `.claude/agents/dataset-inference-auditor` 서브에이전트 invoke (§18.1–§18.7 자동 검사). PASS 못 받으면 cloud upload 차단 | §18.6 |
 | 새 H 또는 새 E 작성 / `card.yaml` / `run.sh` 작성 | `notes/refs/hypothesis_workflow.md` | §5 상세 + §9 + §17 |
 | literature-scout 호출 / `papers/` 신규 항목 | `notes/refs/papers_routing.md` | §8 |
 | 스킬 호출 / 등록 / 수정 | `notes/refs/skills_index.md` | §12 |

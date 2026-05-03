@@ -8,11 +8,12 @@
 |---|---|---|---|
 | `unified_backbones/` | seq + interaction을 single backbone에 통합 (OneTrans, InterFormer, PCVRHyFormer) | seq+int | P1+ 1순위 |
 | `long_seq_retrieval/` | 긴 시퀀스 retrieval/compression (SIM, ETA, TWIN, HSTU) | seq | P2 |
-| `multi_domain_fusion/` | 도메인 간 fusion (MMoE, PLE, STAR, MiNet) | seq | P1 |
+| `multi_domain_fusion/` | 도메인 간 fusion / multi-task expert routing (MMoE, PLE, STAR, MiNet, Switch) | seq | P1 (active 2026-05-01, H012 cold-start) |
 | `semantic_id/` | 생성형 추천 토큰화 (TIGER, OnePiece, RQ-VAE) | seq | P3 |
 | `target_attention/` | candidate-aware attention (DIN, DIEN, DSIN) | seq | P1 |
 | `sparse_feature_cross/` | post-encoder explicit cross at interaction layer (DCN-V2, CAN) | int | P0–P1 |
 | `feature_engineering/` | **input-stage** sparse-dense fusion / `<id, weight>` binding (DLRM, FwFM, DIN, AutoDis) | int (upstream) | P0–P1 |
+| `temporal_cohort/` | training procedure axis — recency loss weighting / temporal embedding / OOF 재정의 / domain adaptation | -- (training) | P1 (active 2026-05-03, H015 cold-start) |
 | `loss_calibration/` | 손실/캘리브레이션 (Focal, class-balanced) | -- | P0–P1 |
 | `external_inspirations/` | 타 도메인 아이디어 (method-transfer 1순위 재료) | varies | P1+ 의무 주입 |
 
@@ -36,3 +37,5 @@
 
 - `unified_backbones/_summary.md` + 3 entries (OneTrans, InterFormer, PCVRHyFormer) — tencent-cc/papers에서 카피, 본 프로젝트의 P1 method-transfer 1순위 백본 후보.
 - `feature_engineering/_summary.md` + 2 entries (DLRM, FwFM) — H011 cold-start (2026-04-30). input-stage `<id, weight>` binding family. CLAUDE.md §3 / §4.8 mandate 직접 cover. FwFM 1저자 Junwei Pan 은 TAAC 2026 organizer (§0).
+- `multi_domain_fusion/_summary.md` + 2 entries (MMoE, PLE) — H012 cold-start (2026-05-01). multi-task / multi-domain expert routing family. PLE 는 Tencent paper — TAAC organizer 와 같은 회사. 4 도메인 Jaccard ≤ 0.10 데이터 motivation 직접 cover.
+- `temporal_cohort/_summary.md` — H015 cold-start (2026-05-03). cohort drift / distribution shift / recency 처리 family. 9 H 의 OOF stable / Platform 변동 일관 패턴 → cohort drift 가 ceiling 의 진짜 정체 가설. 4-layer ceiling diagnosis 의 마지막 가설 L2 검증.

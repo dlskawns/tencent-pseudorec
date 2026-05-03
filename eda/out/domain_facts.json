@@ -1,0 +1,153 @@
+{
+  "source": "tencent-cc/eda/out/deep.json (verified same 1000-row flat snapshot)",
+  "domain_vocab": {
+    "a": {
+      "n_unique_tokens": 345161,
+      "n_total_token_occurrences": 6309774,
+      "top5_tokens": [
+        [
+          0,
+          2390326
+        ],
+        [
+          2,
+          552709
+        ],
+        [
+          6,
+          533221
+        ],
+        [
+          1,
+          237890
+        ],
+        [
+          149,
+          176555
+        ]
+      ],
+      "approx_zipf_top1_share": 0.3788290991087795
+    },
+    "b": {
+      "n_unique_tokens": 656112,
+      "n_total_token_occurrences": 7990612,
+      "top5_tokens": [
+        [
+          0,
+          3239728
+        ],
+        [
+          19,
+          176992
+        ],
+        [
+          15,
+          161069
+        ],
+        [
+          6,
+          135136
+        ],
+        [
+          22,
+          90547
+        ]
+      ],
+      "approx_zipf_top1_share": 0.40544178593579566
+    },
+    "c": {
+      "n_unique_tokens": 976068,
+      "n_total_token_occurrences": 5393172,
+      "top5_tokens": [
+        [
+          0,
+          591698
+        ],
+        [
+          1,
+          435218
+        ],
+        [
+          31,
+          336277
+        ],
+        [
+          2,
+          333764
+        ],
+        [
+          789853,
+          134115
+        ]
+      ],
+      "approx_zipf_top1_share": 0.10971242897500766
+    },
+    "d": {
+      "n_unique_tokens": 192970,
+      "n_total_token_occurrences": 10998590,
+      "top5_tokens": [
+        [
+          0,
+          3132689
+        ],
+        [
+          3,
+          1080433
+        ],
+        [
+          2,
+          422810
+        ],
+        [
+          548,
+          329009
+        ],
+        [
+          13,
+          152193
+        ]
+      ],
+      "approx_zipf_top1_share": 0.284826418659119
+    }
+  },
+  "domain_jaccard_overlap": {
+    "a_vs_b": {
+      "intersection": 73097,
+      "union": 928176,
+      "jaccard": 0.07875338297909017
+    },
+    "a_vs_c": {
+      "intersection": 9678,
+      "union": 1311551,
+      "jaccard": 0.007379049690023491
+    },
+    "a_vs_d": {
+      "intersection": 48895,
+      "union": 489236,
+      "jaccard": 0.09994154150553107
+    },
+    "b_vs_c": {
+      "intersection": 15499,
+      "union": 1616681,
+      "jaccard": 0.009586925311796205
+    },
+    "b_vs_d": {
+      "intersection": 17970,
+      "union": 831112,
+      "jaccard": 0.021621634629267777
+    },
+    "c_vs_d": {
+      "intersection": 18008,
+      "union": 1151030,
+      "jaccard": 0.015645117850968265
+    }
+  },
+  "target_item_in_domain_seq": {
+    "a": 0,
+    "b": 0,
+    "c": 4,
+    "d": 0,
+    "any_domain": 4,
+    "n_rows": 1000
+  }
+}

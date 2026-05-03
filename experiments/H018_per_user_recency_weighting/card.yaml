@@ -1,0 +1,128 @@
+# H018 — Experiment Card
+# Generated 2026-05-03. PRD-driven scaffold (Ralph mode US-007).
+
+hypothesis_id: H018_per_user_recency_weighting
+control_exp_id: H015_recency_loss_weighting   # paired Δ primary
+secondary_control: H010_ns_to_s_xattn         # anchor (corrected 0.837806)
+
+mutation:
+  class: temporal_cohort                      # primary_category (4th sibling)
+  type: granularity_change
+  description: |
+    Replace H015 per-batch linear recency weighting [0.5, 1.5] (by
+    label_time percentile) with per-user exp time-decay weighting
+    weight = exp(-days_since_last_event / tau=14), per-batch normalize
+    mean=1.0, clip [0.1, 3.0]. Mechanism stack (NS xattn + DCN-V2)
+    byte-identical.
+  single_mutation_compliance: |
+    §17.2 — granularity change (per-batch → per-user) is the single
+    mutation. exp form is carry-forward of H017 sub-spec within same
+    mechanism class (recency loss weighting). See challengers.md ④
+    for multi-mutation concern + justification.
+
+carry_forward:
+  - H015: mechanism class (recency loss weighting), per-batch normalize mean=1.0
+  - H016: OOF redefine future-only (default `--oof_redefine future_only`)
+  - H010: NS xattn + DCN-V2 stack byte-identical
+  - §18.7: label_time fill_null + zero_copy_only=False
+  - §18.8: emit_train_summary() at end of train.py (FIRST H to use)
+
+compute_tier: T2.4
+expected_runtime_h: 3.5
+cost_estimate_usd: 5.0
+cost_cap_usd: 5.0                             # §17.6 per-job cap
+cumulative_cost_h_estimate: 44.0              # H006-H017 ~40h + H018 ~4h
+
+success_criterion:
+  primary: "Δ vs H015 corrected platform AUC ≥ +0.005pt"
+  binary_classifications:
+    strong: "Δ ≥ +0.005pt → mechanism class confirmed, anchor candidate"
+    measurable: "Δ ∈ [+0.001, +0.005pt] → per-user 약 effect, mechanism class retire 권고"
+    noise: "Δ ∈ [−0.001, +0.001pt] → granularity REFUTED, mechanism class retire"
+    degraded: "Δ < −0.001pt → per-user variance disrupt, mechanism class retire"
+  secondary:
+    val_platform_gap: "≤ +0.01pt (P5)"
+    oof_platform_gap_redefined: "≤ +0.01pt (P6)"
+    overfit_gap: "≤ +0.005pt (best_val − last_val)"
+
+ckpt_export: best                             # §18.8 ckpt_exported field
+
+falsification:
+  primary_claim: |
+    Per-user exp time-decay weighting yields corrected platform AUC
+    Δ ≥ +0.005pt vs H015 (per-batch linear baseline). If false, recency
+    mechanism class fails the cohort drift attack at finer granularity →
+    paradigm shift mandatory.
+  decision_tree_post_result:
+    strong:
+      - anchor = H018
+      - H019 = tau sweep (7, 30) sub-H or per-user × per-batch hybrid sub-H
+    measurable:
+      - retire mechanism class
+      - H019 = paradigm shift (TWIN retrieval / OneTrans), forced rotation away from temporal_cohort
+    noise:
+      - REFUTED — retire mechanism class
+      - H019 mandatory paradigm shift, cost cap audit (T3 feasibility check)
+    degraded:
+      - REFUTED — variance disrupt
+      - H018-sub = clip [0.5, 1.5] tight or tau=30 smoother, OR retire and paradigm shift
+
+implementation_spec: experiments/H018_per_user_recency_weighting/upload_patch.md
+upload_dir: experiments/H018_per_user_recency_weighting/upload/    # NOT YET BUILT — patch spec only
+auditor_invocation_required: true             # §18.6 dataset-inference-auditor PASS before cloud
+
+reproducibility:                              # §4.5
+  seed: 42
+  git_sha: TBD                                # populate post-patch-applied
+  config_sha256: TBD                          # populate post-patch-applied
+  python: "3.11"
+  venv: ".venv-arm64"
+  host: "TBD (cloud platform: Taiji)"
+
+verify_claim_dry_run:                         # §18.8 first-ever use
+  format: §18.8 SUMMARY block
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H018_per_user_recency_weighting) ===="
+    end: "==== END SUMMARY ===="
+  required_fields_check:
+    - git, cfg, seed, ckpt_exported
+    - epoch_history (≥1 row, columns: epoch | train_loss | val_auc | oof_auc)
+    - best=epoch<N>, val=, oof=
+    - last=epoch<N>, val=, oof=
+    - overfit=<+/-float>
+    - calib pred=, label=, ece=
+
+rotation_audit:                               # §10.7 + §17.4
+  primary_category: temporal_cohort
+  prior_h_categories:
+    - H015: temporal_cohort
+    - H016: temporal_cohort
+    - H017: temporal_cohort
+  consecutive_same_category_count: 4
+  re_entry_justification: challengers.md (§17.4 cite)
+  unexplored_categories:
+    - retrieval_long_seq (TWIN/SIM/HSTU)
+    - backbone_replacement (OneTrans full / HSTU trunk / InterFormer 3-arch)
+    - debiasing
+  post_h018_rotation_mandate: |
+    REFUTED 시 H019 강제 rotation (temporal_cohort 영구 retire).
+    PASS strong 시 sub-H 1회만 허용 후 rotation.
+    PASS measurable 시 즉시 rotation.
+
+prerequisite_for_h018_verdict_validity:       # Tier 0 (US-001)
+  - experiments/H011_aligned_pair_encoding/training_request_remeasure.md
+  - experiments/H012_multi_domain_fusion/training_request_remeasure.md
+  - experiments/H013_hyperparameter_calibration/training_request_remeasure.md
+  description: |
+    H011/H012/H013 corrected eval re-measurement on cloud (~5min × 3,
+    inference-only) MUST complete before H018 paired Δ comparison. Without
+    this, ranking against historical H is invalid (different eval data).
+
+build_status:
+  upload_package: NOT BUILT (patch spec only — out of Ralph PRD scope)
+  hypothesis_docs: COMPLETE (problem.md, challengers.md, transfer.md, predictions.md, lit_refs.md, verdict.md placeholder)
+  card_yaml: COMPLETE (this file)
+  next_step: |
+    Apply upload_patch.md to a fork of H015 upload/ → run local sanity
+    check (§17.5) → invoke dataset-inference-auditor (§18.6) → PASS
+    required → build tar.gz → write training_request.md → cloud submit.

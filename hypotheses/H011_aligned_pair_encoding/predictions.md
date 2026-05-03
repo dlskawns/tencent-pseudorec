@@ -27,10 +27,11 @@ documented mapping 의 implementation 일관성 검증.
 ## P1 — Code-path success
 
 - Quantity: train.py NaN-free 완주, `metrics.json` 생성.
-- Predicted: NaN 0건, finite val/OOF AUC. weighted embedding multiply +
-  H010 NS xattn + DCN-V2 fusion 모두 정상.
-- Falsification: NaN abort, OOM, dense feature scale issue → REFUTED +
-  scale handling 디버깅 (LayerNorm 추가 또는 sigmoid 게이팅).
+- Predicted: NaN 0건, finite val/OOF AUC. **per-row L1-normalized weighted
+  mean** (Option α) 가 두 pattern (X: unbounded count, Y: signed [-1,+1])
+  모두 안전. scale handling 사전 결정 (gap #3, `eda/out/dense_value_stats.json`).
+- Falsification: NaN abort 발생 → Option α 의 zero-row clamp 가 부족 또는
+  upstream NaN. 디버깅 + sub-form (sigmoid, log1p) 시도.
 
 ## P2 — Primary lift (§17.3 binary)
 

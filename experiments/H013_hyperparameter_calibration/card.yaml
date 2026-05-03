@@ -1,0 +1,138 @@
+id: H013_hyperparameter_calibration
+hypothesis_id: H013_hyperparameter_calibration
+slug: hyperparameter_calibration
+status: ready
+compute_tier: T2.4 extended (10ep × 30%, patience=3) ~3h
+claim_scope: |
+  Measurement diagnostic H — H010 mechanism (NS→S xattn) + H008 mechanism
+  (DCN-V2 fusion) + envelope byte-identical. run.sh 4 hyperparameter calibration:
+    --batch_size 2048 (사용자 override 명시 bake)
+    --lr 8e-4 (linear scaling rule for batch 8×, Goyal et al. 2017)
+    --num_workers 2→4 (IO bound 완화, Taiji deadlock 위험 8 미만)
+    --buffer_batches 4→8 (큰 배치 IO 부하 완화)
+  Goal: 7개 H 누적 ceiling 0.82~0.8408 의 정체 결정 — hyperparameter artifact
+  (Frame A) vs mechanism limit (Frame B) vs cohort drift (Frame C).
+  H012 F-2 (effective lr 1/8 underpowered) carry-forward 직접 trigger.
+
+control: H010_ns_to_s_xattn (anchor, Platform 0.8408)
+
+treatment: |
+  H010 envelope + H010 mechanism + H008 mechanism byte-identical (model.py /
+  train.py / infer.py / trainer.py 모두 코드 변경 0). run.sh 만 4 hyperparameter
+  변경.
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 8.0e-4                               # H013 NEW: linear scaling for batch 8× (was 1e-4)
+  sparse_lr: 0.05                          # 변경 없음 (Adagrad adaptive, not linear scaling)
+  batch_size: 2048                         # H013 NEW: 사용자 override 명시 bake (was 256)
+  num_epochs: 10
+  patience: 3
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 4                           # H013 NEW: IO 완화 (was 2)
+  buffer_batches: 8                        # H013 NEW: IO 완화 (was 4)
+  train_ratio: 0.3
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+  fusion_type: dcn_v2                      # H008 anchor 그대로
+  dcn_v2_num_layers: 2                     # H008 anchor 그대로
+  dcn_v2_rank: 8                           # H008 anchor 그대로
+  use_ns_to_s_xattn: true                  # H010 anchor 그대로
+  ns_xattn_num_heads: 4                    # H010 anchor 그대로
+  log_attn_entropy: true                   # H010 anchor 그대로
+
+run_command: bash experiments/H013_hyperparameter_calibration/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 150                     # ~2.5-3.5h, lr 큰 효과로 patience=3 trigger 빠를 수 있음
+
+falsification:
+  P1: NaN abort or non-finite best_val_AUC (lr 8e-4 발산 위험)
+  P2: Δ vs anchor (H010 0.8408) classification — strong (≥+0.005pt) | measurable [+0.001, +0.005pt] | noise (−0.001, +0.001pt] | degraded (<−0.001pt)
+  P3: NS xattn entropy 변화 (H010 baseline [0.8127, 0.8133]) — 변화 미세 | 더 sparse | 더 uniform
+  P4: any §18 인프라 회귀
+  P5: not falsifying — val ↔ platform alignment 보너스
+  P6: OOF-platform gap (H010 1.88 / H011 2.42 / H012 2.10) — gap 줄어듦 | 유지 | 더 벌어짐
+  P7: not falsifying — wall ≤ H010 (3:44:54) IO efficiency
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD                       # launch 후 metrics.json
+  total_param_count: TBD                   # H010 동일 (~198M, 변경 없음)
+
+mutation_class:
+  axis: hyperparameter_calibration         # measurement H, no mechanism axis
+  type: measurement-diagnostic (H010 byte-identical, run.sh only)
+  rotation: primary_category 없음 (measurement H) → §10.7 / §17.4 rotation 룰 미발동. 다음 mechanism H (H014) 시 직전 2 mechanism H = H011 feature_engineering + H012 multi_domain_fusion 차단.
+  parametric_justification: |
+    §17.2 의 "structural not parametric" 룰에 표면적 위반.
+    정당화:
+    1. H012 F-2 (hyperparameter measurement bias) — 사전 가설 + 명시 trigger.
+    2. Linear scaling rule (Goyal et al. 2017) = standard practice, arbitrary tuning 아님.
+    3. 4 changes 모두 single concern (training efficiency under batch 2048).
+    4. Measurement integrity check — 결과가 모든 prior H 재해석에 영향.
+
+infra_inheritance:
+  - §18 모든 룰 inherit (H010 패키지 byte-identical)
+  - H010 §10.9 attn entropy 룰 active 유지 (threshold 5.65)
+
+carry_forward_from_prior:
+  - H010 mechanism + envelope: byte-identical (NS xattn, DCN-V2 fusion)
+  - H010 F-1: NS-only enrichment safe pattern → H013 mechanism 변경 0 → 안전
+  - H010 F-3: NS xattn entropy 0.81 selective routing → H013 entropy 변화 측정 (P3)
+  - H011 F-5: cohort drift hard ceiling 가설 → H013 P6 gap monitor 로 검증
+  - H012 F-1 (Frame B): NS-token level mechanism class 한계 → H013 결과로 Frame A vs B 분리
+  - H012 F-2 (hyperparameter bias) → H013 핵심 trigger
+  - H012 F-3 (4-layer ceiling diagnosis): H013 = L1 (hyperparameter regime) 분리
+  - H012 F-5 (IO bound 신호): num_workers 2→4, buffer_batches 4→8 같이
+
+decision_tree_post_result:
+  strong: |
+    Δ vs H010 ≥ +0.005pt + P1/P3/P4 PASS →
+    Ceiling = hyperparameter artifact (Frame A confirmed). 모든 prior H 재해석.
+    anchor 갱신 (H013 = 새 baseline). H014 = mechanism H (new ranking).
+  measurable: |
+    Δ ∈ [+0.001, +0.005pt] →
+    부분적 hyperparameter, 부분적 mechanism. anchor 갱신 검토. H014 = long-seq P2 또는 cohort H.
+  noise: |
+    Δ ∈ (−0.001, +0.001pt] + P3 변화 미세 →
+    Mechanism ceiling 진짜 (Frame B confirmed). lr 적정.
+    anchor 갱신 안 함. H014 = long-seq P2 entry (truncate 95%+ 정보 손실 motivation).
+  degraded: |
+    Δ < −0.001pt →
+    lr 너무 큼. H013-sub = lr 4e-4 (절반 scaling) 또는 batch 256 복귀.
+  nan_abort: |
+    P1 NaN/divergence →
+    lr 8e-4 발산. H013-sub = lr 4e-4 또는 warmup 100 step 추가.
+  cohort_ceiling: |
+    P6 gap 더 벌어짐 (>2.5pt) →
+    cohort overfit (Frame C confirm). cohort H 우선.
+
+code_package_status: BUILT
+build_artifacts:
+  - experiments/H013_hyperparameter_calibration/upload/        # 12 files (model.py / train.py / infer.py / trainer.py byte-identical, run.sh + README.md 변경)
+  - experiments/H013_hyperparameter_calibration/upload.tar.gz  # 64,569 bytes
+
+sanity_checks:
+  - syntax: "ast.parse OK for model.py / train.py / infer.py / trainer.py / dataset.py"
+  - mechanism_unchanged: "model.py byte-identical with H010 (sha256 검증 가능)"
+  - run_sh_diff: "4 hyperparameter changes vs H010/upload/run.sh"

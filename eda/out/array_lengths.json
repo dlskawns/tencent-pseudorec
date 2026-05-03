@@ -1,0 +1,266 @@
+{
+  "62": {
+    "user_int_feats_lengths": {
+      "min": 0,
+      "max": 5,
+      "mean": 2.114,
+      "n_zeros": 70,
+      "histogram": {
+        "2": 317,
+        "3": 270,
+        "1": 235,
+        "4": 105,
+        "0": 70,
+        "5": 3
+      }
+    },
+    "user_dense_feats_lengths": {
+      "min": 0,
+      "max": 5,
+      "mean": 2.114,
+      "n_zeros": 70,
+      "histogram": {
+        "2": 317,
+        "3": 270,
+        "1": 235,
+        "4": 105,
+        "0": 70,
+        "5": 3
+      }
+    },
+    "schema_user_int_dim": 5,
+    "schema_user_dense_dim": 5
+  },
+  "63": {
+    "user_int_feats_lengths": {
+      "min": 0,
+      "max": 11,
+      "mean": 2.555,
+      "n_zeros": 70,
+      "histogram": {
+        "2": 275,
+        "1": 225,
+        "3": 185,
+        "4": 119,
+        "0": 70,
+        "5": 65,
+        "6": 27,
+        "7": 20,
+        "8": 10,
+        "10": 2
+      }
+    },
+    "user_dense_feats_lengths": {
+      "min": 0,
+      "max": 11,
+      "mean": 2.555,
+      "n_zeros": 70,
+      "histogram": {
+        "2": 275,
+        "1": 225,
+        "3": 185,
+        "4": 119,
+        "0": 70,
+        "5": 65,
+        "6": 27,
+        "7": 20,
+        "8": 10,
+        "10": 2
+      }
+    },
+    "schema_user_int_dim": 11,
+    "schema_user_dense_dim": 11
+  },
+  "64": {
+    "user_int_feats_lengths": {
+      "min": 0,
+      "max": 18,
+      "mean": 3.822,
+      "n_zeros": 70,
+      "histogram": {
+        "2": 161,
+        "1": 148,
+        "3": 142,
+        "4": 124,
+        "5": 120,
+        "6": 75,
+        "0": 70,
+        "7": 64,
+        "8": 33,
+        "9": 22
+      }
+    },
+    "user_dense_feats_lengths": {
+      "min": 0,
+      "max": 18,
+      "mean": 3.822,
+      "n_zeros": 70,
+      "histogram": {
+        "2": 161,
+        "1": 148,
+        "3": 142,
+        "4": 124,
+        "5": 120,
+        "6": 75,
+        "0": 70,
+        "7": 64,
+        "8": 33,
+        "9": 22
+      }
+    },
+    "schema_user_int_dim": 18,
+    "schema_user_dense_dim": 18
+  },
+  "65": {
+    "user_int_feats_lengths": {
+      "min": 0,
+      "max": 49,
+      "mean": 5.713,
+      "n_zeros": 80,
+      "histogram": {
+        "1": 137,
+        "2": 120,
+        "4": 107,
+        "3": 95,
+        "0": 80,
+        "5": 77,
+        "6": 71,
+        "7": 56,
+        "8": 47,
+        "9": 32
+      }
+    },
+    "user_dense_feats_lengths": {
+      "min": 0,
+      "max": 49,
+      "mean": 5.713,
+      "n_zeros": 80,
+      "histogram": {
+        "1": 137,
+        "2": 120,
+        "4": 107,
+        "3": 95,
+        "0": 80,
+        "5": 77,
+        "6": 71,
+        "7": 56,
+        "8": 47,
+        "9": 32
+      }
+    },
+    "schema_user_int_dim": 49,
+    "schema_user_dense_dim": 49
+  },
+  "66": {
+    "user_int_feats_lengths": {
+      "min": 0,
+      "max": 66,
+      "mean": 7.139,
+      "n_zeros": 86,
+      "histogram": {
+        "1": 129,
+        "2": 103,
+        "3": 88,
+        "0": 86,
+        "4": 82,
+        "6": 64,
+        "7": 60,
+        "5": 51,
+        "8": 46,
+        "9": 41
+      }
+    },
+    "user_dense_feats_lengths": {
+      "min": 0,
+      "max": 66,
+      "mean": 7.139,
+      "n_zeros": 86,
+      "histogram": {
+        "1": 129,
+        "2": 103,
+        "3": 88,
+        "0": 86,
+        "4": 82,
+        "6": 64,
+        "7": 60,
+        "5": 51,
+        "8": 46,
+        "9": 41
+      }
+    },
+    "schema_user_int_dim": 66,
+    "schema_user_dense_dim": 66
+  },
+  "89": {
+    "user_int_feats_lengths": {
+      "min": 0,
+      "max": 10,
+      "mean": 9.45,
+      "n_zeros": 55,
+      "histogram": {
+        "10": 945,
+        "0": 55
+      }
+    },
+    "user_dense_feats_lengths": {
+      "min": 0,
+      "max": 10,
+      "mean": 9.45,
+      "n_zeros": 55,
+      "histogram": {
+        "10": 945,
+        "0": 55
+      }
+    },
+    "schema_user_int_dim": 10,
+    "schema_user_dense_dim": 10
+  },
+  "90": {
+    "user_int_feats_lengths": {
+      "min": 0,
+      "max": 10,
+      "mean": 9.09,
+      "n_zeros": 91,
+      "histogram": {
+        "10": 909,
+        "0": 91
+      }
+    },
+    "user_dense_feats_lengths": {
+      "min": 0,
+      "max": 10,
+      "mean": 9.09,
+      "n_zeros": 91,
+      "histogram": {
+        "10": 909,
+        "0": 91
+      }
+    },
+    "schema_user_int_dim": 10,
+    "schema_user_dense_dim": 10
+  },
+  "91": {
+    "user_int_feats_lengths": {
+      "min": 0,
+      "max": 10,
+      "mean": 5.5,
+      "n_zeros": 450,
+      "histogram": {
+        "10": 550,
+        "0": 450
+      }
+    },
+    "user_dense_feats_lengths": {
+      "min": 0,
+      "max": 10,
+      "mean": 5.5,
+      "n_zeros": 450,
+      "histogram": {
+        "10": 550,
+        "0": 450
+      }
+    },
+    "schema_user_int_dim": 10,
+    "schema_user_dense_dim": 10
+  }
+}

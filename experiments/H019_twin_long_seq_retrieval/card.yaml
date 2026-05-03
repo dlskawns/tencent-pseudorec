@@ -1,0 +1,134 @@
+# H019 — Experiment Card
+# Generated 2026-05-03. PRD-driven scaffold (Ralph mode US-005).
+# CONDITIONAL: launch decision depends on H018 outcome.
+
+hypothesis_id: H019_twin_long_seq_retrieval
+control_exp_id: H010_ns_to_s_xattn        # paired Δ primary vs corrected anchor
+secondary_control: H015_recency_loss_weighting   # H015 corrected for retrieval-vs-recency comparison
+
+mutation:
+  class: retrieval_long_seq                # primary_category (NEW first-touch)
+  type: mechanism_class_addition
+  description: |
+    TWIN (Tencent 2024 RecSys) GSU+ESU per-domain retrieval module.
+    GSU = simple inner product (parameter-free) → top-K=64. ESU =
+    standard MultiHeadAttention(num_heads=4). Applied per-domain
+    (a/b/c/d) before existing self-attention encoder. seq_max_lens
+    expanded 64-128 → 512 cap to make retrieval meaningful.
+  single_mutation_compliance: |
+    §17.2 — TWIN module addition is the single mechanism class change.
+    NS xattn / DCN-V2 stack byte-identical. seq_max_lens expansion is
+    coupled (retrieval requires capacity to retrieve from) — counted as
+    same mutation per challengers.md.
+
+carry_forward:
+  - H010: NS xattn + DCN-V2 stack byte-identical
+  - §18.7: label_time fill_null + zero_copy_only=False
+  - §18.8: emit_train_summary() at end of train.py (second H to use)
+  - H016: redefined OOF default (--oof_redefine future_only)
+
+compute_tier: T3                           # Lambda/RunPod on-demand
+expected_runtime_h: 6
+cost_estimate_usd: 15.0                    # T3 per-job cap
+cost_cap_usd: 12.0                         # §17.6 T3 per-run cap (warn at $12, abort at $15)
+cumulative_cost_h_estimate: 56.0           # H006-H018 ~50h + H019 ~6h
+cumulative_cost_usd_estimate: TBD          # Taiji 가격 unknown, T3 추가 ~$15
+campaign_cost_cap_usd: 100.0               # §17.6 per-campaign
+
+success_criterion:
+  primary: "Δ vs H010 corrected (0.837806) platform AUC ≥ +0.005pt"
+  binary_classifications:
+    strong: "Δ ≥ +0.005pt → retrieval mechanism class confirmed, anchor = H019"
+    measurable: "Δ ∈ [+0.001, +0.005pt] → retrieval 약 effect, sub-H 후보"
+    noise: "Δ ∈ [−0.001, +0.001pt] → retrieval 도 cohort hard ceiling 못 풂, H020 보류"
+    degraded: "Δ < −0.001pt → TWIN 구현 issue, sub-H 또는 retire"
+  secondary:
+    val_platform_gap: "≤ +0.01pt (P5, F-A baseline mean −0.003pt)"
+    oof_platform_gap_redefined: "≤ +0.01pt (P6, H016 baseline −0.004pt)"
+    overfit_gap: "≤ +0.005pt (best_val − last_val)"
+    cost_cap: "actual ≤ $15 (P7)"
+
+ckpt_export: best                         # §18.8 ckpt_exported field
+
+falsification:
+  primary_claim: |
+    TWIN GSU+ESU per-domain retrieval (top-K=64 from cap=512) yields
+    corrected platform AUC Δ ≥ +0.005pt vs H010 anchor (0.837806). If
+    false, retrieval form fails the cohort drift attack → cohort hard
+    ceiling hypothesis strong confirm → H020 paradigm shift 다른 form
+    보류 결정.
+  decision_tree_post_result:
+    strong:
+      - anchor = H019
+      - H020 = TWIN sub-H (top-K sweep 32/128/256, learnable GSU variant)
+      - retrieval mechanism class 영구 confirm
+    measurable:
+      - retrieval 약 effect
+      - H020 = sub-H (top-K variant 또는 SIM original form)
+    noise:
+      - retrieval 도 ceiling 못 풂 → cohort hard ceiling 강한 confirm
+      - H020 보류 (cost cap audit 후 ensemble / multi-seed measurement H pivot)
+      - paradigm shift class 추가 시도 보류
+    degraded:
+      - TWIN 구현 issue
+      - sub-H = top-K=128 or ESU 단순화 또는 retire
+
+implementation_spec: experiments/H019_twin_long_seq_retrieval/upload_patch.md  # TBD
+upload_dir: experiments/H019_twin_long_seq_retrieval/upload/                     # NOT YET BUILT
+auditor_invocation_required: true        # §18.6 mandatory before cloud upload
+
+reproducibility:                         # §4.5
+  seed: 42
+  git_sha: TBD                           # populate post-build
+  config_sha256: TBD                     # populate post-build
+  python: "3.11"
+  venv: ".venv-arm64"
+  host: "TBD (cloud platform: T3 Lambda/RunPod 권장 — Taiji 가격 위협 시 외부 GPU)"
+
+verify_claim_dry_run:                    # §18.8 second use after H018
+  format: §18.8 SUMMARY block
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H019_twin_long_seq_retrieval) ===="
+    end: "==== END SUMMARY ===="
+  required_fields_check:
+    - git, cfg, seed, ckpt_exported
+    - epoch_history (≥1 row)
+    - best=epoch<N>, val=, oof=
+    - last=epoch<N>, val=, oof=
+    - overfit=<+/-float>
+    - calib pred=, label=, ece=
+
+rotation_audit:                          # §10.7 + §17.4
+  primary_category: retrieval_long_seq   # NEW first-touch
+  rotation_status: AUTO_JUSTIFIED        # 미경험 카테고리 first-touch
+  prior_h_categories:                    # post-H018
+    - H015: temporal_cohort
+    - H016: temporal_cohort
+    - H017: temporal_cohort
+    - H018: temporal_cohort
+  unexplored_categories_remaining_after_h019:
+    - backbone_replacement (OneTrans full / HSTU trunk / InterFormer 3-arch)
+    - debiasing
+  post_h019_rotation_mandate: |
+    H019 PASS strong → sub-H 1회 (top-K sweep) 후 다른 카테고리 강제.
+    H019 PASS measurable → 즉시 다른 카테고리.
+    H019 REFUTED → backbone_replacement 또는 debiasing 으로 강제 rotation.
+    cost cap (§17.6) 위협 시 ensemble / multi-seed measurement H pivot.
+
+prerequisite_for_h019_launch:
+  - H018 verdict 완료 (PASS strong / measurable / noise / degraded 결정)
+  - H018 noise/REFUTED 시 H019 즉시 launch 권장
+  - H018 PASS strong 시 H019 보류 (sub-H 우선)
+  - 누적 cost audit (Taiji 가격 사용자 확인 + T3 estimate)
+  - upload/ package construction (out of Ralph PRD scope)
+
+build_status:
+  upload_package: NOT BUILT (scaffold only — out of Ralph PRD scope)
+  hypothesis_docs: COMPLETE (problem.md, challengers.md, transfer.md, predictions.md, lit_refs.md, verdict.md placeholder)
+  card_yaml: COMPLETE (this file)
+  next_step: |
+    H018 결과 회수 → H018 verdict.
+    H018 outcome (noise/REFUTED 가장 likely per H018 predictions.md 50%) 시 H019 immediate.
+    H019 upload/ patch spec 작성 → fork H010 upload/ → TWIN module 추가
+    → local sanity (§17.5) → dataset-inference-auditor (§18.6) →
+    PASS 받으면 cloud T3 submit.

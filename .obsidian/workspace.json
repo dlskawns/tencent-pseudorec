@@ -1,0 +1,217 @@
+{
+  "main": {
+    "id": "451bc10508afab07",
+    "type": "split",
+    "children": [
+      {
+        "id": "dbb26b6c7cae8947",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "9c2ea314c7cf0926",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "새 탭"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "6e5b7c17a72e67a1",
+    "type": "split",
+    "children": [
+      {
+        "id": "0fb28c0d0510dec0",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "253cdfec9e7f6821",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "파일 탐색기"
+            }
+          },
+          {
+            "id": "ddf971b5033087e9",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "검색"
+            }
+          },
+          {
+            "id": "e57221f65e6d8096",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "북마크"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "905034b34bbb6c7e",
+    "type": "split",
+    "children": [
+      {
+        "id": "3f194491351e24b5",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "7f60419f9ccd0497",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "백링크"
+            }
+          },
+          {
+            "id": "071b6054a94efd14",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "나가는 링크"
+            }
+          },
+          {
+            "id": "7857a35bdcd3eb7e",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "태그"
+            }
+          },
+          {
+            "id": "1d07edf631d879c5",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "모든 속성"
+            }
+          },
+          {
+            "id": "761599e02799e7c9",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "개요"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:빠른 전환기 열기": false,
+      "graph:그래프 뷰 열기": false,
+      "canvas:새 캔버스 만들기": false,
+      "daily-notes:오늘의 일일 노트 열기": false,
+      "templates:템플릿 삽입": false,
+      "command-palette:명령어 팔레트 열기": false,
+      "bases:새 베이스 생성하기": false
+    }
+  },
+  "active": "253cdfec9e7f6821",
+  "lastOpenFiles": [
+    "experiments/H019_twin_long_seq_retrieval/upload_patch.md",
+    "notes/llm/wiki/by_experiment/H022_h010_multi_seed_variance.md",
+    "experiments/H022_h010_multi_seed_variance/card.yaml",
+    "hypotheses/H022_h010_multi_seed_variance/verdict.md",
+    "hypotheses/H022_h010_multi_seed_variance/lit_refs.md",
+    "hypotheses/H022_h010_multi_seed_variance/predictions.md",
+    "hypotheses/H022_h010_multi_seed_variance/transfer.md",
+    "hypotheses/H022_h010_multi_seed_variance/challengers.md",
+    "notes/llm/wiki/by_hypothesis/H022_h010_multi_seed_variance.md",
+    "hypotheses/H022_h010_multi_seed_variance/problem.md",
+    "experiments/H022_h010_multi_seed_variance",
+    "hypotheses/H022_h010_multi_seed_variance",
+    "notes/llm/wiki/by_experiment/H019_twin_long_seq_retrieval.md",
+    "experiments/H019_twin_long_seq_retrieval/card.yaml",
+    "hypotheses/H019_twin_long_seq_retrieval/verdict.md",
+    "hypotheses/H019_twin_long_seq_retrieval/lit_refs.md",
+    "hypotheses/H019_twin_long_seq_retrieval/predictions.md",
+    "hypotheses/H019_twin_long_seq_retrieval/transfer.md",
+    "무제.base",
+    "hypotheses/H011_aligned_pair_encoding/verdict.md",
+    "hypotheses/H019_twin_long_seq_retrieval/challengers.md",
+    "notes/llm/wiki/by_hypothesis/H019_twin_long_seq_retrieval.md",
+    "hypotheses/H019_twin_long_seq_retrieval/problem.md",
+    "experiments/H019_twin_long_seq_retrieval",
+    "hypotheses/H019_twin_long_seq_retrieval",
+    "experiments/H013_hyperparameter_calibration/training_result.md",
+    "notes/llm/wiki/by_hypothesis/INDEX.md",
+    "notes/llm/wiki/by_experiment/INDEX.md",
+    "experiments/H018_per_user_recency_weighting/card.yaml",
+    "notes/llm/wiki/by_experiment/H018_per_user_recency_weighting.md",
+    "experiments/H018_per_user_recency_weighting/upload_patch.md",
+    "hypotheses/H018_per_user_recency_weighting/verdict.md",
+    "hypotheses/H018_per_user_recency_weighting/lit_refs.md",
+    "hypotheses/H018_per_user_recency_weighting/predictions.md",
+    "experiments/H018_per_user_recency_weighting",
+    "hypotheses/H018_per_user_recency_weighting"
+  ]
+}

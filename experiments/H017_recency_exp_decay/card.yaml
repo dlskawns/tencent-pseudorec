@@ -1,0 +1,114 @@
+id: H017_recency_exp_decay
+hypothesis_id: H017_recency_exp_decay
+slug: recency_exp_decay
+status: ready
+compute_tier: T2.4 extended (10ep × 30%, patience=3) ~3-4h
+claim_scope: |
+  H015 sub-form variant — recency_weight_form 'linear' → 'exp' (auto-normalized
+  to mean=1.0). H015 envelope + mechanism + 모든 설정 byte-identical.
+  Goal: linear vs exp curve 의 효과 분리. cohort drift 의 적정 weight curve
+  결정. **Triple-H setup with H015 / H016 동시 launch**.
+
+control: H010_ns_to_s_xattn corrected eval (Platform 0.837806). Secondary:
+  H015 (paired sibling, form 효과 isolated).
+
+treatment: |
+  H015 byte-identical 외 trainer.py 의 weight 함수만 변경:
+    linear: w = w_min + (w_max - w_min) × pct                    # mean = (w_min+w_max)/2
+    exp: w_raw = w_min × (w_max/w_min)^pct, w = w_raw / w_raw.mean()  # mean = 1.0 (auto-normalize)
+  Range 동일 [0.5, 1.5].
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 2048
+  num_epochs: 10
+  patience: 3
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.3
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+  fusion_type: dcn_v2
+  dcn_v2_num_layers: 2
+  dcn_v2_rank: 8
+  use_ns_to_s_xattn: true
+  ns_xattn_num_heads: 4
+  log_attn_entropy: true
+  use_recency_loss_weighting: true
+  recency_weight_min: 0.5
+  recency_weight_max: 1.5
+  recency_weight_form: exp                 # H017 NEW (was 'linear' default)
+
+run_command: bash experiments/H017_recency_exp_decay/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 180
+
+falsification:
+  P1: NaN abort
+  P2: Δ vs H010 corrected (0.837806) — strong (≥+0.005pt) | measurable | noise | degraded
+  P2_paired: Δ vs H015 (recency linear, paired sibling) — exp 효과 (≥+0.001pt) | 변경 없음 | exp disrupt
+  P3: NS xattn entropy 변화 미세 expected
+  P4: §18 PASS
+  P5: val ↔ platform
+  P6: OOF-Platform gap
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  config_sha256: TBD
+
+mutation_class:
+  axis: temporal_cohort (H015 sub-form)
+  type: form variant (linear → exp)
+  rotation: temporal_cohort 카테고리 H015 first-touch + H017 sub-form (§10.7 변형 패턴 정합)
+
+infra_inheritance:
+  - H015 byte-identical except recency_weight_form parameter
+  - §18 inference 룰 inherit
+
+carry_forward_from_prior:
+  - H015 mechanism + envelope: byte-identical except form parameter
+  - 4-layer ceiling diagnosis 의 L2 sub-form 검증
+
+decision_tree_post_result:
+  strong: |
+    Δ vs H010 ≥ +0.005pt + Δ vs H015 ≥ +0.001pt → exp form 효과 confirmed.
+    H018 = exp variants (range tuning, per-dataset).
+  noise_vs_h015: |
+    Δ vs H015 noise → form 변경 효과 없음. linear 가 sufficient (또는 둘 다
+    marginal). H018 = (triple-H 종합) backbone replacement 또는 cohort
+    sub-H.
+  degraded_vs_h015: |
+    Δ vs H015 < −0.001pt → exp 가 학습 disrupt (asymmetry).
+    H018 = linear with wider range (e.g., [0.3, 1.7]).
+
+code_package_status: BUILT
+build_artifacts:
+  - experiments/H017_recency_exp_decay/upload/        # 12 files (H015 base + 1 trainer.py branch + train.py CLI + run.sh + README)
+  - experiments/H017_recency_exp_decay/upload.tar.gz  # 64,789 bytes
+
+sanity_checks:
+  - syntax: "ast.parse OK for model.py / train.py / infer.py / trainer.py / dataset.py"
+  - mechanism_unchanged: "model.py / infer.py byte-identical with H010 (sha256 검증 가능)"
+  - mean_weight_conservation: "auto-normalize ensures mean = 1.0 → loss scale 보존"

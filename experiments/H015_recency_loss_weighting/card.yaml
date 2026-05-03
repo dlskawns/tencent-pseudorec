@@ -1,0 +1,148 @@
+id: H015_recency_loss_weighting
+hypothesis_id: H015_recency_loss_weighting
+slug: recency_loss_weighting
+status: ready
+compute_tier: T2.4 extended (10ep × 30%, patience=3) ~3-4h
+claim_scope: |
+  Recency-aware loss weighting (per-batch linear by label_time, [0.5, 1.5],
+  mean = 1.0). H010 mechanism (NS xattn) + H008 mechanism (DCN-V2 fusion)
+  + envelope byte-identical (model.py / infer.py / utils.py). dataset.py
+  (label_time batch dict 노출), trainer.py (loss weighting branch),
+  train.py (CLI flags) 변경.
+  Goal: 4-layer ceiling diagnosis 의 마지막 가설 L2 (cohort drift hard
+  ceiling) 직접 검증. 9 H 의 OOF stable / Platform 변동 일관 패턴 → train
+  cohort 가 platform eval 분포 (미래 시점) 에 closer 만들면 ceiling 깰 수
+  있는지.
+  H014 verdict F-2 carry-forward (OOF-Platform gap 2.59pt = 9 H 중 가장 큼)
+  직접 motivation.
+
+control: H010_ns_to_s_xattn corrected eval (Platform 0.837806)
+
+treatment: |
+  H010 envelope + mechanism byte-identical. PLUS:
+  --use_recency_loss_weighting 활성화. trainer.py 의 _train_step:
+    label_time = device_batch['label_time'].float()
+    pct = (label_time - lt_min) / (lt_max - lt_min)  # per-batch [0, 1]
+    weights = 0.5 + 1.0 * pct                         # [0.5, 1.5], mean=1.0
+    loss = (weights * bce_loss_per_sample).mean()
+  dataset.py 가 batch dict 에 label_time 노출 (line 553 + line 642 area).
+  mean weight = 1.0 보존 → loss scale / lr / optimizer 영향 없음.
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4                               # H010 default 명시 bake
+  sparse_lr: 0.05
+  batch_size: 2048                         # 사용자 prior H regime 명시 bake
+  num_epochs: 10
+  patience: 3
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.3
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"  # H010 default
+  backbone: hyformer
+  fusion_type: dcn_v2                      # H008 anchor
+  dcn_v2_num_layers: 2                     # H008 anchor
+  dcn_v2_rank: 8                           # H008 anchor
+  use_ns_to_s_xattn: true                  # H010 anchor
+  ns_xattn_num_heads: 4                    # H010 anchor
+  log_attn_entropy: true                   # H010 anchor
+  use_recency_loss_weighting: true         # H015 NEW
+  recency_weight_min: 0.5                  # H015 NEW (oldest sample)
+  recency_weight_max: 1.5                  # H015 NEW (newest, mean = 1.0)
+
+run_command: bash experiments/H015_recency_loss_weighting/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 180                     # ~3-4h, H010 envelope 동일
+
+falsification:
+  P1: NaN abort (가능성 매우 작음 — mean weight 보존)
+  P2: Δ vs H010 corrected (0.837806) — strong (≥+0.005pt) | measurable [+0.001, +0.005pt] | noise (−0.001, +0.001pt] | degraded (<−0.001pt)
+  P3: NS xattn entropy 변화 (H010 baseline [0.8127, 0.8133]) — 변화 미세 expected
+  P4: any §18 인프라 회귀 (가능성 작음, infer.py byte-identical)
+  P5: not falsifying — val ↔ platform alignment 보너스
+  P6: OOF-platform gap (9 H baseline 1.88~2.59pt) — gap 줄어듦 (L2 confirm) | 유지 | 더 벌어짐 (recency 잘못된 direction) — **핵심 진단**
+  P7: not falsifying — OOF AUC 변화 (recent 강조 시 OOF random user 약간 하락 가능)
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD
+  total_param_count: TBD                   # H010 동일 (~198M, 변경 없음)
+
+mutation_class:
+  axis: temporal_cohort (training procedure axis, UNI-REC 안 새 layer)
+  type: single mutation (loss weighting only, mechanism stack byte-identical)
+  rotation: temporal_cohort 신규 카테고리 first-touch (§10.7 FREE). 직전 2 H = H013 (no category) + H014 (envelope_expansion). 카테고리 충돌 없음.
+  paradigm_significance: |
+    4-layer ceiling diagnosis 의 마지막 unexplored 가설 L2 검증.
+    L2 도 noise / degraded 시 → paradigm 안 ceiling 가설 모두 retire →
+    paradigm shift mandatory (backbone replacement / OOF 재정의 등).
+
+infra_inheritance:
+  - §18 모든 룰 inherit (infer.py byte-identical with H010)
+  - §10.9 attn entropy active 유지 (mechanism stack 변경 0)
+  - dataset.py label_time exposure 가 inference 에 영향 없음 (label_time
+    inference batch 에도 들어가지만 trainer 만 사용)
+
+carry_forward_from_prior:
+  - H010 mechanism + envelope: byte-identical (NS xattn + DCN-V2 + per-domain encoder + seq 64-128)
+  - H010 corrected (0.837806) = anchor
+  - H010 F-1: NS-only enrichment safe pattern → H015 mechanism 변경 0 → 안전
+  - H011 F-5 + H012 F-3 + H013 F-4 + H014 F-2/F-3: cohort drift hard ceiling 가설 → H015 의 핵심 동기
+  - H014 F-3: 4-layer diagnosis 종료, paradigm shift inevitable → H015 가 paradigm 안 마지막 시도
+  - §0 north star: training procedure axis = production CTR cohort handling 표준
+
+decision_tree_post_result:
+  strong: |
+    Δ vs H010 ≥ +0.005pt + P6 gap 줄어듦 →
+    L2 strong confirmed. cohort drift = ceiling 의 진짜 정체.
+    anchor 갱신 (H015 = 새 baseline). H016 = recency variants (exp decay,
+    larger range, per-dataset normalization).
+  measurable: |
+    Δ ∈ [+0.001, +0.005pt] →
+    L2 partial. anchor 갱신 검토. H016 = recency + cohort embedding combo
+    또는 OOF 재정의 (Frame C).
+  noise: |
+    Δ ∈ (−0.001, +0.001pt] →
+    L2 retire confirmed. **paradigm shift mandatory (Frame B)**.
+    H016 = backbone replacement (OneTrans full / HSTU trunk / InterFormer
+    3-arch).
+  degraded: |
+    Δ < −0.001pt →
+    Recency weighting 학습 disrupt. H015-sub = weight range 좁힘 [0.7, 1.3]
+    또는 exp decay (less aggressive) 또는 per-dataset normalization.
+  cohort_widen: |
+    P6 gap 더 벌어짐 (>2.7pt) →
+    Recency direction 잘못. H016 = OOF 재정의 (Frame C) — random user
+    holdout → label_time future-only holdout. paired Δ baseline 깨짐 인정.
+
+code_package_status: BUILT
+build_artifacts:
+  - experiments/H015_recency_loss_weighting/upload/        # 12 files (4 changed code + README, model.py / infer.py / utils.py / make_schema.py / local_validate.py / ns_groups.json / requirements.txt byte-identical)
+  - experiments/H015_recency_loss_weighting/upload.tar.gz  # 65,258 bytes
+
+sanity_checks:
+  - syntax: "ast.parse OK for model.py / train.py / infer.py / trainer.py / dataset.py"
+  - mechanism_unchanged: "model.py / infer.py / utils.py byte-identical with H010 (sha256 검증 가능)"
+  - run_sh_diff: "5 flag changes vs H010 (3 H015 + 2 H010 default 명시 bake)"
+  - mean_weight_conservation: "linear [0.5, 1.5] symmetric around 1.0 → mean = 1.0 (loss scale 보존)"

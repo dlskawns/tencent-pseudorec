@@ -1,0 +1,145 @@
+{
+  "n_rows": 1000,
+  "ns_groups_json_total_dim": 918,
+  "schema_json_total_dim": 755,
+  "data_observed_max_total": 755,
+  "gap_ns_groups_minus_schema": 163,
+  "interpretation": "Schema sum and data observed_max sum match perfectly within demo_1000 \u2014 make_schema.py auto-extraction is correct. ns_groups.json's 918 reflects a different snapshot (likely full-data observed_max). Gap of 163 cannot be attributed to specific fid(s) without access to that snapshot's per-fid dims; most likely candidates = fids 61/87 (long dense vectors, near-full in demo_1000) or fids 65/66 (highest-cardinality aligned, capped at observed max in 1000-row sample).",
+  "per_fid": {
+    "61": {
+      "role": "dense-only",
+      "schema_dim": 256,
+      "data_min": 0,
+      "data_max": 256,
+      "data_mean": 255.488,
+      "variance_max_minus_min": 256,
+      "histogram_top3": {
+        "256": 998,
+        "0": 2
+      },
+      "schema_matches_data_max": true
+    },
+    "62": {
+      "role": "aligned",
+      "schema_dim": 5,
+      "data_min": 0,
+      "data_max": 5,
+      "data_mean": 2.114,
+      "variance_max_minus_min": 5,
+      "histogram_top3": {
+        "2": 317,
+        "3": 270,
+        "1": 235
+      },
+      "schema_matches_data_max": true
+    },
+    "63": {
+      "role": "aligned",
+      "schema_dim": 11,
+      "data_min": 0,
+      "data_max": 11,
+      "data_mean": 2.555,
+      "variance_max_minus_min": 11,
+      "histogram_top3": {
+        "2": 275,
+        "1": 225,
+        "3": 185
+      },
+      "schema_matches_data_max": true
+    },
+    "64": {
+      "role": "aligned",
+      "schema_dim": 18,
+      "data_min": 0,
+      "data_max": 18,
+      "data_mean": 3.822,
+      "variance_max_minus_min": 18,
+      "histogram_top3": {
+        "2": 161,
+        "1": 148,
+        "3": 142
+      },
+      "schema_matches_data_max": true
+    },
+    "65": {
+      "role": "aligned",
+      "schema_dim": 49,
+      "data_min": 0,
+      "data_max": 49,
+      "data_mean": 5.713,
+      "variance_max_minus_min": 49,
+      "histogram_top3": {
+        "1": 137,
+        "2": 120,
+        "4": 107
+      },
+      "schema_matches_data_max": true
+    },
+    "66": {
+      "role": "aligned",
+      "schema_dim": 66,
+      "data_min": 0,
+      "data_max": 66,
+      "data_mean": 7.139,
+      "variance_max_minus_min": 66,
+      "histogram_top3": {
+        "1": 129,
+        "2": 103,
+        "3": 88
+      },
+      "schema_matches_data_max": true
+    },
+    "87": {
+      "role": "dense-only",
+      "schema_dim": 320,
+      "data_min": 0,
+      "data_max": 320,
+      "data_mean": 315.2,
+      "variance_max_minus_min": 320,
+      "histogram_top3": {
+        "320": 985,
+        "0": 15
+      },
+      "schema_matches_data_max": true
+    },
+    "89": {
+      "role": "aligned",
+      "schema_dim": 10,
+      "data_min": 0,
+      "data_max": 10,
+      "data_mean": 9.45,
+      "variance_max_minus_min": 10,
+      "histogram_top3": {
+        "10": 945,
+        "0": 55
+      },
+      "schema_matches_data_max": true
+    },
+    "90": {
+      "role": "aligned",
+      "schema_dim": 10,
+      "data_min": 0,
+      "data_max": 10,
+      "data_mean": 9.09,
+      "variance_max_minus_min": 10,
+      "histogram_top3": {
+        "10": 909,
+        "0": 91
+      },
+      "schema_matches_data_max": true
+    },
+    "91": {
+      "role": "aligned",
+      "schema_dim": 10,
+      "data_min": 0,
+      "data_max": 10,
+      "data_mean": 5.5,
+      "variance_max_minus_min": 10,
+      "histogram_top3": {
+        "10": 550,
+        "0": 450
+      },
+      "schema_matches_data_max": true
+    }
+  }
+}

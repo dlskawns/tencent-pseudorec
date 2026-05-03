@@ -18,5 +18,6 @@
 | `submission-gate` | 제출 직전 | `local_validate.py` G1–G6 통과 |
 | `cloud-handoff` | T2/T3 실험 실행 직전 | `experiments/{id}/training_request.md` + `{id}_package.tar.gz` |
 | `cloud-intake` | 사용자 결과 paste 시 | `training_result.md` + INDEX/verdict/progress 갱신 |
+| `notion-hypothesis-report` | 가설 결과를 노션에 게시할 때 | 가설 제목 Notion 페이지 + 방법론/결과 표준 양식 |
 
-스킬 본문은 `tencent-cc/skills/` 14종을 참조. 본 프로젝트가 본격화하면 카피 또는 새로 작성.
+스킬 본문은 `.claude/skills/`를 우선 소스오브트루스로 사용. 필요 시 `tencent-cc/skills/`는 read-only 참고.

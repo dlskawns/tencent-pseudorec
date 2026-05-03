@@ -1,0 +1,155 @@
+id: H012_multi_domain_fusion
+hypothesis_id: H012_multi_domain_fusion
+slug: multi_domain_fusion
+status: ready
+compute_tier: T2.4 extended (10ep × 30%, patience=3) ~3-3.5h
+claim_scope: |
+  Multi-domain MoE on NS-tokens (MMoE single-layer, 4 experts = domain mapping).
+  Source: MMoE (Ma et al. KDD 2018, arXiv:1810.10739) — task→domain mapping.
+  통합 위치: H010 NS xattn 출력 직후, query decoder + DCN-V2 fusion 전.
+  NS dimension preserved → DCN-V2 fusion input token stack unchanged → H009
+  위치 충돌 회피, H011 input-stage cohort drift 회피.
+  데이터 motivation: 4 도메인 (a/b/c/d) item Jaccard ≤ 0.10 (`eda/out/domain_facts.json`),
+  length p50 a=577 / d=1035 차이, frac_empty a=0.5% / d=8% 차이 — explicit
+  expert specialization 자연 motivation.
+
+control: H010_ns_to_s_xattn (anchor, Platform 0.8408) + H008 carry-forward (0.8387)
+
+treatment: |
+  H010 envelope + H010 mechanism + H008 mechanism byte-identical. PLUS:
+  --use_multi_domain_moe 활성. 신규 클래스 MultiDomainMoEBlock:
+    Input: ns_tokens (B, N_NS=7, D=64).
+    Pre-LN on input.
+    4 experts: each Sequential(Linear(64, 128), SiLU, Linear(128, 64)).
+    Gate: Linear(64, 4) + softmax → (B, 7, 4) routing weights.
+    Output: ns_tokens + Σ gate_i × expert_i(LN(ns_tokens)). Residual.
+    log_gate_entropy 진단 (§10.9 룰 적용).
+  통합 위치: MultiSeqHyFormerBlock.forward, NS xattn 직후. enriched ns_tokens
+  → query decoder + DCN-V2 fusion (그대로).
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256
+  num_epochs: 10
+  patience: 3
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.3
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+  fusion_type: dcn_v2                      # H008 anchor 그대로
+  dcn_v2_num_layers: 2                     # H008 anchor 그대로
+  dcn_v2_rank: 8                           # H008 anchor 그대로
+  use_ns_to_s_xattn: true                  # H010 anchor 그대로
+  ns_xattn_num_heads: 4                    # H010 anchor 그대로
+  log_attn_entropy: true                   # H010 anchor + H012 MoE entropy 같이 측정
+  use_multi_domain_moe: true               # H012 NEW
+  num_experts: 4                           # H012 NEW (= 4 도메인)
+  moe_ffn_hidden: 128                      # H012 NEW (= 2 × d_model)
+
+run_command: bash experiments/H012_multi_domain_fusion/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 180                     # ~3-3.5h, params +66K (sanity 측정), H010 envelope 동급
+
+falsification:
+  P1: NaN abort or non-finite best_val_AUC (gate softmax 발산 또는 expert FFN issue)
+  P2: Δ vs anchor (H010 0.8408) < +0.001pt (binary measurable threshold relaxed at sample-scale)
+  P2_strong: Δ vs H010 ≥ +0.005pt (strong PASS)
+  P3: MoE gate entropy collapse — entropy < 0.5 × log(4) ≈ 0.69 → §10.9 abort 신호
+  P3_uniform: entropy > log(4) − 0.05 ≈ 1.34 → uniform routing (Frame B 신호 — specialization 안 일어남)
+  P4: any §18 인프라 회귀
+  P5: not falsifying — val ↔ platform alignment 보너스
+  P6: not falsifying — OOF-platform gap (H010 baseline 1.88pt) ≤ 2pt 유지
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD                       # launch 후 metrics.json
+  total_param_count: TBD                   # H010 ~198M + ~66.7K (sanity 측정값) ≈ 198M
+
+mutation_class:
+  axis: multi_domain_fusion
+  type: stacking-on-champion (H010 anchor 위 NS-token level single mutation)
+  rotation: multi_domain_fusion 신규 first-touch (§10.7 FREE) — 직전 2 H = H010 target_attention + H011 feature_engineering, 둘 다 다른 카테고리.
+
+infra_inheritance:
+  - §18 모든 룰 inherit (H010 패키지 over-overlay)
+  - infer.py 추가 cfg keys (use_multi_domain_moe, num_experts, moe_ffn_hidden) read-back
+  - H010 §10.9 attn entropy 룰 active (H012 의 gate entropy 도 같이 측정 — collapse threshold 0.69)
+  - collect_moe_gate_entropies() 메서드 추가 — train.py 진단 블록에서 호출
+
+carry_forward_from_prior:
+  - H010 F-1: NS-only enrichment safe pattern → H012 도 NS-token 출력 단계 stacking, downstream byte-identical
+  - H010 F-3: NS xattn entropy 0.81 (selective routing) → H012 expert 가 dominant signal 보완 가설
+  - H010 F-4: anchor 갱신 → control = H010 (Platform 0.8408)
+  - H011 F-1: input-stage modify 위험 회피 → H012 NS-token level (post-encoder) stacking
+  - H011 F-2: NS xattn 이 dominant signal 학습 → H012 expert routing 가 그 routing 보완 (Frame A 가설)
+  - H011 F-5: cohort drift hard ceiling 가능성 → H012 결과 OOF-platform gap (P6) 모니터
+  - §3.5 domain Jaccard ≤ 0.10 + length 차이 → multi_domain_fusion 데이터 motivation
+  - eda/out/domain_facts.json: H012 motivation 출처
+
+decision_tree_post_result:
+  strong_pass: |
+    Δ vs anchor (H010) ≥ +0.005pt + P3 specialized (entropy ∈ [0.69, 1.30]) + P4 PASS →
+    H012 strong PASS. anchor 갱신 (H012 = 새 baseline).
+    H013 = orthogonal axis (NS xattn sub-H 또는 input-stage sub-form, rotation 따라).
+  measurable: |
+    Δ ∈ [+0.001, +0.005pt] + P3 specialized →
+    H012 PASS. anchor 갱신 검토.
+    H013 = MMoE variants (PLE progressive, num_experts) 또는 다른 axis.
+  noise: |
+    Δ ∈ (−0.001, +0.001pt) + P3 uniform (entropy ≈ log(4)) →
+    Frame B 채택 (NS xattn 이 이미 implicit routing 학습).
+    anchor 갱신 안 함. H013 = NS xattn sub-H 또는 cohort 처리 (H011 F-5).
+  degraded: |
+    Δ < −0.001pt + P3 specialized →
+    interference (expert routing 이 H010 selective routing 흔듦).
+    H013 = MMoE 통합 위치 변경 sub-H (NS xattn 전 또는 DCN-V2 후).
+  collapse: |
+    P3 entropy < 0.69 (§10.9 abort) →
+    expert collapse — sample-scale 한계. H013 = num_experts ≤ 2 또는 hard
+    routing (top-1 with straight-through).
+  cohort_ceiling_confirmed: |
+    P6 fail (OOF-platform gap > 2pt) →
+    cohort drift hard ceiling confirmed (H011 F-5 강한 confirm).
+    cohort 처리 H 우선 (recency-aware OOF, temporal weighting).
+  invalid: |
+    P1 NaN abort OR config_sha256 mismatch →
+    INVALID. gate softmax 발산 또는 expert FFN issue 디버깅.
+
+code_package_status: BUILT
+build_artifacts:
+  - experiments/H012_multi_domain_fusion/upload/        # 12 files
+  - experiments/H012_multi_domain_fusion/upload.tar.gz  # 66,469 bytes
+
+sanity_checks:
+  - syntax: "ast.parse OK for model.py / train.py / infer.py / trainer.py / dataset.py"
+  - dummy_forward: |
+      Test 1 (shape + finite): out (4, 7, 64), |out|.max=3.62
+      Test 2 (param count): 66,692 (예상값과 일치)
+      Test 3 (gate entropy at random init): 1.3783 (uniform log(4)≈1.386 근접 — 학습 전 expected)
+      Test 4 (residual delta): 0.083 (> 0, bounded)
+      Test 5 (gradient flow): 20/20 params with grad
+  - param_correction: "초기 추정 ~33K → 실측 66.7K (4 experts × 64→128→64 + gate + LN). anchor envelope 면제 적용 후 budget 안 (anchor ~198M 대비 미미)"

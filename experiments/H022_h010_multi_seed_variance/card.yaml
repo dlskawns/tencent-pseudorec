@@ -1,0 +1,140 @@
+# H022 — Experiment Card
+# Generated 2026-05-03. Subset A: H022 + H019 + H018 parallel launch.
+# Measurement H, NO model mutation.
+
+hypothesis_id: H022_h010_multi_seed_variance
+control_exp_id: H010_ns_to_s_xattn        # measurement target = anchor
+secondary_control: (none)                  # no comparison H
+
+mutation:
+  class: measurement                        # NEW first-touch category
+  type: no_mutation_seed_replication
+  description: |
+    H010 mechanism + envelope byte-identical, seed only 변경 (42 → 42,
+    43, 44). 3 platform AUC values → mean ± stdev (variance estimate).
+    Outputs σ classification (tight ≤ 0.001 / moderate (0.001, 0.005]
+    / large > 0.005pt) which determines retroactive validity of all
+    9 prior H paired Δ values + future H multi-seed mandate decision.
+  single_mutation_compliance: |
+    §17.2 EXEMPT — H022 is measurement H, no mechanism mutation. Per
+    challengers.md ④, mutation-vs-mutation rules apply only to
+    mutation H. H022 instead validates the §17.3 binary threshold
+    statistical foundation.
+
+carry_forward:
+  - H010: NS xattn + DCN-V2 stack byte-identical (no patch)
+  - §18.7: label_time fill_null (H015 patch carry-forward — apply to H010 train.py if not already)
+  - §18.8: emit_train_summary() at end of train.py (THIRD H to use, after H018/H019)
+  - H010 envelope: 10ep × 30% × patience=3
+
+compute_tier: T2.4
+expected_runtime_h_per_seed: 3.5
+expected_runtime_h_total_serial: 10.5
+expected_runtime_h_total_parallel: 3.5     # 3 GPU/slot
+cost_estimate_usd_per_seed: 5.0
+cost_estimate_usd_total: 15.0              # 3 seeds × $5
+cost_cap_usd_per_seed: 5.0                 # §17.6 T2 per-job cap
+cost_cap_usd_total: 15.0
+cumulative_cost_h_estimate: 60.0           # Subset A: H022 + H019 + H018 ~50h base + 10.5h serial OR 3.5h parallel
+campaign_cost_cap_usd: 100.0               # §17.6 per-campaign
+
+success_criterion:
+  primary: "σ (3-seed stdev) classification: tight / moderate / large"
+  binary_classifications:
+    tight: "σ ≤ 0.001pt → existing 9 H paired Δ classifications trustworthy, single-seed valid for future H"
+    moderate: "σ ∈ (0.001, 0.005pt] → marginal Δ retroactive recategorize (e.g., H015 → REFUTED noise band 안 confirm). H018+ multi-seed RECOMMENDED."
+    large: "σ > 0.005pt → 9 H all retroactive INVALID. future H multi-seed (≥3) MANDATORY. cost 3× → campaign cap audit STRICT."
+  secondary:
+    val_platform_gap_variance: "σ_gap ≤ 0.002pt (P5 stable signal)"
+    oof_legacy_variance: "σ_OOF ≤ 0.001pt (saturation hypothesis confirm)"
+    nsxattn_entropy_variance: "σ_entropy ≤ 0.05 (mechanism stability)"
+    cost_actual: "≤ $15 total (P7)"
+
+ckpt_export: best                           # §18.8 ckpt_exported field
+ckpt_export_per_seed: true                  # 3 ckpts saved separately
+
+falsification:
+  primary_claim: |
+    H010 mechanism의 platform AUC가 seed 42/43/44 3회 학습 시 stdev σ를 갖는다.
+    σ 측정 자체는 falsify 불가능 (결과). σ classification 의 threshold 적용 결정만
+    falsifiable (σ tight = future single-seed valid, σ large = future multi-seed mandatory).
+  decision_tree_post_result:
+    tight:
+      - existing 9 H Δ classifications confirmed trustworthy
+      - H018/H019/future H single-seed valid
+      - H022-sub unnecessary
+    moderate:
+      - marginal Δ retroactive recategorize (H015 → noise band)
+      - §17.3 threshold raise to +0.01pt 제안 (CLAUDE.md update)
+      - H018+ multi-seed RECOMMENDED (not mandatory)
+    large:
+      - 9 H all single-seed measurements INVALID
+      - all future H ≥3 seed MANDATORY
+      - cost 3× → campaign cap audit STRICT
+      - H020+ paradigm shift cost re-evaluate (T3 ~$25 × 3 = $75 per H)
+      - H022-sub = paired bootstrap CI implementation (more rigor)
+
+implementation_spec: |
+  No code change required IF H010 train.py 이미 §18.7 (H015 patch) + §18.8
+  (emit_train_summary) 적용. 미적용 시 patch:
+  1. dataset.py: copy H015 §18.7 fix (label_time fill_null).
+  2. train.py: add emit_train_summary() at end of main (per upload_patch.md
+     of H018).
+  3. run.sh: 3 launches with --seed 42 / 43 / 44.
+  4. (optional) wrapper script for parallel cloud submit.
+
+upload_dir: experiments/H022_h010_multi_seed_variance/upload/   # NOT YET BUILT (use H010 upload + minimal patch)
+auditor_invocation_required: true        # §18.6 — verify H010 patches applied
+
+reproducibility:                         # §4.5
+  seed: [42, 43, 44]
+  git_sha: TBD                           # populate post-build
+  config_sha256: TBD                     # populate post-build
+  python: "3.11"
+  venv: ".venv-arm64"
+  host: "TBD (Taiji T2.4)"
+  determinism_check: |
+    torch.manual_seed(seed) + np.random.seed(seed) + cuda deterministic.
+    H010 train.py 검증 의무.
+
+verify_claim_dry_run:                    # §18.8 third H to use
+  format: §18.8 SUMMARY block (3 separate per seed)
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H022_h010_multi_seed_variance, seed=42|43|44) ===="
+    end: "==== END SUMMARY ===="
+  required_fields_check:
+    - git, cfg, seed, ckpt_exported (3 SUMMARY blocks, one per seed)
+    - aggregate post-3-runs: mean platform AUC, stdev, σ classification
+
+rotation_audit:                          # §10.7 + §17.4
+  primary_category: measurement          # NEW first-touch
+  rotation_status: AUTO_JUSTIFIED        # 미경험 카테고리 first-touch
+  prior_h_categories:
+    - H015~H018: temporal_cohort (4 H)
+    - H019: retrieval_long_seq (NEW)
+    - H022: measurement (NEW)
+  unexplored_categories_remaining_after_h022:
+    - backbone_replacement (OneTrans full / HSTU trunk / InterFormer 3-arch)
+    - debiasing
+  post_h022_rotation_mandate: |
+    σ tight → H023 후보 다른 mechanism class (rotation valid).
+    σ moderate/large → H022-sub (5 seeds 추가) 정당화 가능 (measurement
+    카테고리 재진입), 또는 다른 카테고리 multi-seed 의무 적용.
+
+prerequisite_for_h022_launch:
+  - H010 train.py 의 §18.7 + §18.8 patch 확인 (or apply minimal patch)
+  - 3 GPU/slot availability (parallel) OR 10.5h sequential budget
+  - cost cap audit ($15 within $100 campaign)
+  - upload/ minimal — H010 byte-identical + 3 seed flags
+
+build_status:
+  upload_package: NOT BUILT (use H010 upload/ + minimal patch — out of Ralph PRD scope, but very small effort)
+  hypothesis_docs: COMPLETE (problem.md, challengers.md, transfer.md, predictions.md, lit_refs.md, verdict.md placeholder)
+  card_yaml: COMPLETE (this file)
+  next_step: |
+    1. H010 train.py 검증: §18.7 + §18.8 patch 여부.
+    2. 미적용 시 patch (≤ 30 lines).
+    3. 3 GPU slot 확보 OR sequential schedule.
+    4. parallel/sequential launch with --seed 42/43/44.
+    5. 3 SUMMARY blocks 회수 → mean ± stdev 산출 → σ classification.
+    6. verify-claim 스킬 invoke (3 SUMMARY 블록 paste).

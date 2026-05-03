@@ -320,3 +320,181 @@ OPEN QUESTIONS
 - (new) H010 entropy 0.81 — collapse 가능성 vs 도메인-aware hard routing 분리 측정 (sub-H, attention map snapshot).
 - (new) full-data 도착 시 H010 NS→S xattn 의 super-additive 가능성 (paper-grade lift 도달 여부).
 - (new) raw metrics.json paste — best_step / val_AUC / config_sha256 / git_sha 확인 (sanity gate 재검증).
+
+================================================================================
+2026-05-01 — iter — H011 scaffold + 4-Fix harness patch + P0 audit PASS
+================================================================================
+
+CONTEXT
+- H010 PASS additive (이전 turn) → H011 scaffold = aligned `<id, weight>` pair encoding 시작.
+- 사용자 지적: H011 scaffold 가 §3 의 "후보 9 fids" (`{61–66, 89–91}`) 직접 인용 → 미검증 fact 인용. competition/ns_groups.json 의 _note_shared_fids 검증값 (8 fids `{62-66, 89-91}`) 와 불일치.
+
+HARNESS GAP DIAGNOSIS (3-layer)
+- Layer 1: §3 "후보" soft-label, EDA 미수행 인정.
+- Layer 2: 검증 artifact (ns_groups.json) 가 다른 곳에 만들어짐, §19 routing 부재.
+- Layer 3: 내가 turn 안에서 §3 candidate 를 fact 로 elevate (재발 사례).
+
+FIXES APPLIED (4 patches)
+- Fix 1 — CLAUDE.md §3: "후보 9 fids" → verified 8 fids `{62-66, 89-91}` + dense-only `{61, 87}` + total_dim 명시 (demo_1000 실측 755, ns_groups.json 의 918 은 다른 snapshot).
+- Fix 2 — CLAUDE.md §19: ns_groups.json + dataset.py:_user_dense_plan routing 행 추가.
+- Fix 3 — CLAUDE.md §4 ground rule #9: "데이터 사실 인용 chain" — 후보/TBD 라벨 fact 인용 금지 + ns_groups.json/eda/out 우선.
+- Fix 4 — notes/refs/hypothesis_workflow.md §17 hook 후보: §3 미검증 fact 직접 인용 검출 차단.
+
+EXECUTION (P0 audit)
+- eda/aligned_pair_audit.py 작성 + 실행 (numpy 1.26 user-site 설치 후).
+- demo_1000.parquet 1000 rows × 8 aligned fids 측정.
+- 결과: 모든 8 fids 에서 n_k == m_k == schema_dim_k, 1000/1000 rows match.
+- Option A (position-wise binding) 확정.
+
+P0 VERDICT (H011)
+- Status: PASS.
+- F-0: 8 aligned fids 모두 schema-data 일치 (62/63/64/65/66/89/90/91 → dim 5/11/18/49/66/10/10/10).
+- Surprise: array length variance 0 (모든 row 가 schema_dim 정확). sequence-like list 가 아닌 structured fixed-vector → "행동 리스트 + 강도" 보다 "categorical profile + 강도" 해석. mechanism 영향 없음.
+- total_dim=755 (schema.json) ≠ 918 (ns_groups.json) — 다른 snapshot. CLAUDE.md §3 정정 완료.
+
+ARTIFACTS
+- CLAUDE.md (§3, §4, §19 patch).
+- notes/refs/hypothesis_workflow.md (§17 hook 후보 추가).
+- hypotheses/H011_aligned_pair_encoding/ — 6 files (problem/challengers/transfer/predictions/lit_refs/verdict, 모두 verified 8-fid set 으로 정정).
+- papers/feature_engineering/ — 신규 카테고리 (_summary, dlrm_naumov2019, fwfm_pan2018).
+- papers/README.md — feature_engineering 카테고리 추가.
+- hypotheses/INDEX.md — Active Pipeline H011 row + Backlog 갱신.
+- eda/aligned_pair_audit.py — P0 script.
+- eda/out/aligned_offsets.json + array_lengths.json + aligned_audit.json — P0 결과.
+
+NEXT (iter+1)
+- 코드 빌드: experiments/H011_aligned_pair_encoding/upload/ — H010 over-overlay + RankMixerNSTokenizer aligned-pair branch (forward 에 weighted multiply, aligned fid 만).
+- train.py CLI flags 추가 (--use_aligned_pair_encoding, --aligned_pair_form).
+- infer.py cfg.get 추가.
+- sanity dry-run + tar.gz.
+- training_request.md + Taiji handoff.
+
+OPEN QUESTIONS
+- (carry-over) 채점 wall-clock / 본데이터 schema / metric / full-data / 클라우드 비용.
+- (new) full-data 의 aligned fid array length 변동성 — demo_1000 에선 fixed 였지만 full-data 에서 variable 가능성 (mechanism 의 mask 처리 검증 필요).
+- (new) weighted multiply 의 scale handling — raw weight [0, ?] 분포 unknown. P1 학습 첫 batch 에서 NaN/inf 모니터.
+
+================================================================================
+2026-05-01 — iter — H011 verdict (REFUTED — degraded) + H012 = multi_domain_fusion 추천
+================================================================================
+
+CONTEXT
+- H011 (aligned_pair_encoding) 클라우드 학습 + inference 완료. Taiji 로그 paste.
+- 사전 가설: input-stage per-row L1-norm weighted multiply on aligned 8 fids → H010 anchor 위 explicit binding lift.
+- gap #3 (dense_value_stats) 측정 후 Option α (per-row L1) 선택했음.
+
+EXECUTION
+- 학습 wall: 2시간 46분 54초 (H010 3:44:54 대비 −25%, params 추가 0).
+- Inference wall: 178.31초 (H010 297초 대비 −40%).
+- OOF AUC: 0.8589 / OOF LogLoss: 0.2342.
+- attn_entropy_per_layer: [0.8130, 0.8132], threshold 5.6531, violation=False.
+- **Platform AUC: 0.834699 (eval auc)** — anchor 대비 악화.
+- Δ vs H010 anchor (0.8408): **−0.0061pt** → degraded.
+- Δ vs H008 carry-forward (0.8387): −0.0040pt.
+- Δ vs original_baseline (~0.83X): +0.4~+0.5pt (anchor 정확값 의존, marginal absolute).
+
+VERDICT (H011)
+- Status: **REFUTED — degraded**.
+- F-1: input-stage aligned encoding REFUTED. OOF (−0.0007) 보존, Platform (−0.0061) 큰 폭 하락 = classic overfit signature 재발 (H009 패턴).
+- F-2: NS xattn entropy 거의 변화 없음 (Δ ~0.001). Frame B 신호 — H010 selective routing 이 input variance 흡수.
+- F-3: Option α scale handling 의 한계 — Pattern X 의 magnitude 정보 손실 + Pattern Y sign distortion 가능성. multi-form sub-H 후보.
+- F-4: training −25% / inference −40% — parameter-free input mutation cost-effective 신호.
+- F-5: cohort drift 가 platform 일반화의 hard ceiling 가능성. mechanism 위치 무관하게 OOF+/Platform− 패턴 재발.
+- F-6: 누적 cost ~21h. §17.6 cap 압박 지속.
+
+FINDINGS
+- H011 F-1: input-stage modify 가 cohort fit 유지하면서도 platform 악화 → mechanism class wrong direction.
+- H011 F-2: H010 의 selective routing 이 dominant signal 학습 — NS xattn sub-H 도 marginal 가능성.
+- H011 F-3: Pattern X (count, max=18M) 와 Y (signed [-1,+1]) 통일 처리의 한계.
+- H011 F-4: parameter-free input mutation 의 wall 효율 (−25% 학습, −40% infer).
+- H011 F-5: cohort overfit ceiling — 별도 H 가치 (recency-aware OOF / temporal cohort weighting).
+- H011 F-6: cost cap 압박 → fp16/batch=512 또는 train_ratio=20% 검토.
+
+ARTIFACTS
+- experiments/H011_aligned_pair_encoding/verdict.md (신규).
+- experiments/H011_aligned_pair_encoding/training_result.md (신규, raw metrics.json 도착 후 보강).
+- hypotheses/H011_aligned_pair_encoding/verdict.md (PENDING → done, P0–P6 + Findings + Carry-forward).
+- experiments/INDEX.md (H011 row + cost 갱신).
+- hypotheses/INDEX.md (Active Phase + Active Pipeline → H012 scaffold pending + Recent Findings 5 prepend + Archive H011 row + Backlog 정렬).
+- progress.txt (본 블록).
+- (pending) experiments/H011_aligned_pair_encoding/metrics.json — 사용자 raw paste 시 verbatim 저장.
+
+NEXT (iter+1)
+- **H012 권장 = multi_domain_fusion (MMoE/PLE)** — 신규 카테고리 first-touch.
+  - 4 도메인 (a/b/c/d) expert routing. §3.5 의 도메인별 길이 (p50: a=577, b=405, c=322, d=1035) / frac_empty (a=0.5%, b=1.2%, c=0.2%, d=8%) 차이 자연 motivation.
+  - H010 anchor 위 NS xattn 출력 → expert gate → DCN-V2 fusion.
+  - control = H010 (Platform 0.8408). H008 carry-forward.
+  - primary_category: multi_domain_fusion (신규 카테고리).
+  - 비용 예상: ~3-3.5h (H010 envelope, expert routing 약간의 params 추가).
+- 대안 H012 = CAN co-action (sparse_feature_cross 변형). category 직전 2 turn 안엔 없음 (H008 마지막) — 안전.
+- §10.7 rotation: feature_engineering 직전 → 차단. target_attention 도 직전 2 turn 안에 H010 있어 정당화 필요.
+- 사용자 결정 후 hypotheses/H012_*/ scaffold (problem/challengers/transfer/predictions/lit_refs/verdict 6 files).
+
+OPEN QUESTIONS
+- (carry-over) 채점 wall-clock / 본데이터 schema / metric / full-data / 클라우드 비용.
+- (new) cohort drift 가 platform 일반화 ceiling 인가 — H009 / H011 둘 다 OOF+/Platform− 재발. mechanism 위치 무관. 별도 H 가치 (temporal cohort, recency OOF 재정의).
+- (new) H010 NS xattn 의 selective routing 이 어디까지 robust 한가 — H011 input variance 흡수했음. multi_domain_fusion 같은 expert routing 와 어떤 interaction 인지.
+- (new) raw metrics.json paste — best_step / val_AUC / config_sha256 / git_sha 확인 (sanity gate 재검증).
+
+================================================================================
+2026-05-02 — iter — H012 verdict (REFUTED — Frame B uniform routing) + 4-layer ceiling diagnosis + H013 = hyperparameter calibration
+================================================================================
+
+CONTEXT
+- H012 (multi_domain_fusion, MMoE single-layer 4 experts on NS-tokens) 클라우드 학습 + inference 완료.
+- 사용자 batch_size=2048 override 정보 새로 노출 (default 256 의 8×).
+
+EXECUTION
+- 학습 wall: 2시간 49분 43초 (H010 −24%).
+- Inference wall: 137.39초 (H010 −54%).
+- OOF AUC: 0.8589 / OOF LogLoss: 0.2335.
+- attn_entropy_per_layer: [0.8130, 0.8139] (H010 baseline 변화 없음).
+- moe_gate_entropy_per_block: [1.378, 1.363] (uniform threshold 1.386 거의 동일).
+- collapse_violation: False (specialization 없음 단 collapse 도 없음).
+- **Platform AUC: 0.838047 (eval auc)** — anchor 미달.
+- Δ vs H010 anchor (0.8408): −0.0028pt → noise/degraded 경계.
+
+VERDICT (H012)
+- Status: **REFUTED — Frame B (uniform routing)**.
+- F-1: MoE gate uniform → expert specialization 학습 못 함 (Frame B confirmed).
+- F-2: hyperparameter measurement bias 노출 — batch 2048 + lr 1e-4 = effective lr 1/8.
+- F-3: 4-layer ceiling diagnosis (L1 hyperparameter / L2 cohort drift / L3 NS xattn sparse / L4 truncate).
+- F-4: multi_domain_fusion category retire 후보.
+- F-5: IO bound 신호 (wall 학습 −24%, inference −54%, params 추가 만으로 설명 안 됨).
+- F-6: anchor 갱신 안 함 (H010 0.8408 champion 3회 연속 H REFUTED).
+
+FINDINGS (4-layer ceiling diagnosis 핵심)
+- 7개 H 누적 ceiling 0.82~0.8408. OOF AUC 0.858~0.860 일관 (Platform 만 변동).
+- Layer 1 (hyperparameter): batch 2048 + lr 1e-4 → effective lr 1/8 underpowered. 모든 H 같은 regime → 절대 lift artifact 가능성. **H013 검증 1순위**.
+- Layer 2 (cohort drift): OOF-platform gap 1.9~2.4pt 일관. label_time 기준 split 의 OOF 와 Platform 분포 다름. H011 F-5 → H012 강한 confirm.
+- Layer 3 (NS xattn sparse): entropy 0.81 = ~2 tokens / 384 attended. H010 부터 dominant signal sparse routing. 후속 mechanism marginal — H011/H012 결과로 confirmed.
+- Layer 4 (truncate): seq_max_lens 64-128 vs §3.5 p90 1393~2215 → 95%+ 정보 손실. P2 phase entry 강한 motivation.
+
+ARTIFACTS
+- experiments/H012_multi_domain_fusion/verdict.md (신규).
+- experiments/H012_multi_domain_fusion/training_result.md (신규).
+- hypotheses/H012_multi_domain_fusion/verdict.md (PENDING → done, P1–P6 + Findings + Carry-forward).
+- experiments/INDEX.md (H012 row + cost 24h + IO bound 신호 + batch override 명시).
+- hypotheses/INDEX.md (Active Phase + 4-layer ceiling diagnosis + Active Pipeline → H013 scaffold pending + Recent Findings 5 prepend + Archive H012 row + Backlog 정렬).
+- progress.txt (본 블록).
+- (pending) experiments/H012_multi_domain_fusion/metrics.json — 사용자 raw paste 시 verbatim 저장.
+
+NEXT (iter+1)
+- **H013 = hyperparameter calibration H (measurement diagnostic, parametric mutation justified by H012 F-2)**.
+  - H010 mechanism (NS xattn) + H008 mechanism (DCN-V2 fusion) byte-identical.
+  - Mutation: lr 1e-4 → 8e-4 (linear scaling for batch 2048) 또는 batch 2048 → 256 복귀.
+  - Data loading 같이: num_workers 2→4, buffer_batches 4→8.
+  - control = H010 (Platform 0.8408). H008 carry-forward (0.8387).
+  - Falsification:
+    - Δ vs H010 ≥ +0.005pt → ceiling 은 hyperparameter artifact. 모든 prior H 재해석 의무.
+    - Δ ∈ [0, +0.005] → 부분적 hyperparameter, 부분적 mechanism. 결정 분기.
+    - Δ ≤ 0 → mechanism ceiling 진짜. Track B (long-seq P2) 진행.
+  - 비용: ~3h, 누적 ~27h.
+- 사용자 결정 후 hypotheses/H013_*/ scaffold (problem/challengers/transfer/predictions/lit_refs/verdict 6 files).
+
+OPEN QUESTIONS
+- (carry-over) 채점 wall-clock / 본데이터 schema / metric / full-data / 클라우드 비용.
+- (carry-over) cohort drift hard ceiling 가설 — H011 F-5 + H012 누적 confirm. H013 calibration 후 분리 진행.
+- (carry-over) raw metrics.json paste — best_step / val_AUC / config_sha256 / git_sha 확인 (sanity gate 재검증) + 사용자 batch/lr 실제 override 값 명시.
+- (new) H012 의 wall 큰 폭 단축 (학습 −24%, inference −54%) — IO bound 가능성. H013 data loading 최적화 시 효과 측정.
+- (new) NS-token level mechanism class 가 sample-scale + underpowered regime 에서 specialization 학습 못 하는 한계 (H011/H012 공통). full-data + proper lr 에서 다시 보면 다른가.

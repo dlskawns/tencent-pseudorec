@@ -1,0 +1,95 @@
+{
+  "n_rows": 1000,
+  "per_fid": {
+    "62": {
+      "rows_with_n_eq_m": 1000,
+      "rows_total": 1000,
+      "match_rate": 1.0,
+      "schema_dims_match": true,
+      "schema_int_dim": 5,
+      "schema_dense_dim": 5,
+      "data_int_max": 5,
+      "data_dense_max": 5,
+      "verdict": "PASS"
+    },
+    "63": {
+      "rows_with_n_eq_m": 1000,
+      "rows_total": 1000,
+      "match_rate": 1.0,
+      "schema_dims_match": true,
+      "schema_int_dim": 11,
+      "schema_dense_dim": 11,
+      "data_int_max": 11,
+      "data_dense_max": 11,
+      "verdict": "PASS"
+    },
+    "64": {
+      "rows_with_n_eq_m": 1000,
+      "rows_total": 1000,
+      "match_rate": 1.0,
+      "schema_dims_match": true,
+      "schema_int_dim": 18,
+      "schema_dense_dim": 18,
+      "data_int_max": 18,
+      "data_dense_max": 18,
+      "verdict": "PASS"
+    },
+    "65": {
+      "rows_with_n_eq_m": 1000,
+      "rows_total": 1000,
+      "match_rate": 1.0,
+      "schema_dims_match": true,
+      "schema_int_dim": 49,
+      "schema_dense_dim": 49,
+      "data_int_max": 49,
+      "data_dense_max": 49,
+      "verdict": "PASS"
+    },
+    "66": {
+      "rows_with_n_eq_m": 1000,
+      "rows_total": 1000,
+      "match_rate": 1.0,
+      "schema_dims_match": true,
+      "schema_int_dim": 66,
+      "schema_dense_dim": 66,
+      "data_int_max": 66,
+      "data_dense_max": 66,
+      "verdict": "PASS"
+    },
+    "89": {
+      "rows_with_n_eq_m": 1000,
+      "rows_total": 1000,
+      "match_rate": 1.0,
+      "schema_dims_match": true,
+      "schema_int_dim": 10,
+      "schema_dense_dim": 10,
+      "data_int_max": 10,
+      "data_dense_max": 10,
+      "verdict": "PASS"
+    },
+    "90": {
+      "rows_with_n_eq_m": 1000,
+      "rows_total": 1000,
+      "match_rate": 1.0,
+      "schema_dims_match": true,
+      "schema_int_dim": 10,
+      "schema_dense_dim": 10,
+      "data_int_max": 10,
+      "data_dense_max": 10,
+      "verdict": "PASS"
+    },
+    "91": {
+      "rows_with_n_eq_m": 1000,
+      "rows_total": 1000,
+      "match_rate": 1.0,
+      "schema_dims_match": true,
+      "schema_int_dim": 10,
+      "schema_dense_dim": 10,
+      "data_int_max": 10,
+      "data_dense_max": 10,
+      "verdict": "PASS"
+    }
+  },
+  "all_match": true,
+  "overall_verdict": "PASS \u2014 Option A (position-wise) viable"
+}

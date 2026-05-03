@@ -1,0 +1,137 @@
+id: H014_long_seq_envelope
+hypothesis_id: H014_long_seq_envelope
+slug: long_seq_envelope
+status: ready
+compute_tier: T2.4 extended (10ep × 30%, patience=3) ~6-15h (long-seq overhead)
+claim_scope: |
+  Single envelope mutation — seq_max_lens 4× per domain expansion.
+  H010 mechanism (NS xattn) + H008 mechanism (DCN-V2 fusion) + 모든 코드
+  byte-identical (model.py / train.py / infer.py / trainer.py / dataset.py).
+  run.sh 의 --seq_max_lens 만 변경.
+  Goal: 4-layer ceiling diagnosis 의 마지막 unexplored axis L4 (truncate
+  정보 손실) 검증. §3.5 도메인 p90 1393~2215 vs 현재 truncate 64-128 →
+  95%+ 정보 손실 직접 motivation.
+
+control: H010_ns_to_s_xattn (anchor, Platform 0.8408)
+
+treatment: |
+  H010 envelope + mechanism byte-identical. PLUS:
+  --seq_max_lens "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  → "seq_a:192,seq_b:192,seq_c:192,seq_d:192" (uniform 256: a/b 4×, c/d 2×).
+  Note: 원래 4× per domain (256/256/512/512) 시도 시 V100 19 GB partition +
+  multi-process MPS 환경에서 OOM (attention ~43 GiB). uniform 256 으로 c/d
+  attention memory 4× 감소. PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+  추가 (allocator 단편화 완화).
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4                               # H010 default 명시 bake (H013 8e-4 REFUTED 복귀)
+  sparse_lr: 0.05
+  batch_size: 1024                         # H014 OOM mitigation iter-3 — 사용자 prior H regime 2048 절반 (V100 19 GB partition + multi-process MPS 환경에서 batch 2048 + seq 192 도 25.27 GiB allocated OOM. batch 1024 → ~12.5 GiB 안전). paired Δ confound 인정 (batch regime 변경, lr 그대로).
+  num_epochs: 10
+  patience: 3
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2                           # H010 default (H013 4 REFUTED, 복귀)
+  buffer_batches: 4                        # H010 default (H013 8 REFUTED, 복귀)
+  train_ratio: 0.3
+  seq_max_lens: "seq_a:192,seq_b:192,seq_c:192,seq_d:192"  # H014 NEW (a/b 4× from 64, c/d 2× from 128 — OOM mitigation, uniform 256 for V100 19 GB partition + multi-process MPS)
+  backbone: hyformer
+  fusion_type: dcn_v2                      # H008 anchor
+  dcn_v2_num_layers: 2                     # H008 anchor
+  dcn_v2_rank: 8                           # H008 anchor
+  use_ns_to_s_xattn: true                  # H010 anchor
+  ns_xattn_num_heads: 4                    # H010 anchor
+  log_attn_entropy: true                   # H010 anchor
+
+run_command: bash experiments/H014_long_seq_envelope/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 240                     # ~4-8h, uniform seq 256 = a/b 16× attention compute, c/d 4× (less than 4× per domain plan)
+
+falsification:
+  P1: NaN abort or OOM (batch 2048 + seq 512 메모리 위협)
+  P2: Δ vs anchor (H010 0.8408) — strong (≥+0.005pt) | measurable [+0.001, +0.005pt] | noise (−0.001, +0.001pt] | degraded (<−0.001pt)
+  P3: NS xattn entropy 변화 (H010 baseline [0.8127, 0.8133], 새 threshold ≈ 6.97 = 0.95×log(1536))
+  P4: any §18 인프라 회귀
+  P5: not falsifying — val ↔ platform alignment 보너스
+  P6: OOF-platform gap (H010 1.88 / H011 2.42 / H012 2.10 / H013 2.29) — 줄어듦 | 유지 | 더 벌어짐 (Frame B 신호)
+  P7: not falsifying — wall ≤ 4× of H010 (~15h)
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD
+  total_param_count: TBD                   # H010 동일 (~198M, 변경 없음)
+
+mutation_class:
+  axis: envelope_expansion (sequential axis 의 input shape 강화)
+  type: single envelope mutation (H010 byte-identical except seq_max_lens)
+  rotation: envelope mutation, no mechanism category 충돌. §10.7 룰 미발동.
+  envelope_justification: |
+    §17.2 의 "structural not parametric" — envelope (input data shape) 변경
+    은 structural 인정. mechanism class 변경 0. parametric 아님 (lr/dropout
+    같은 hyperparameter 아님).
+
+infra_inheritance:
+  - §18 모든 룰 inherit (H010 패키지 byte-identical)
+  - §10.9 attn entropy 룰 active 유지 (단 threshold 가 L_total 변경으로
+    5.65 → 6.97 로 증가 — train.py 의 자동 계산 로직 그대로 작동 검증 필요)
+
+carry_forward_from_prior:
+  - H010 mechanism + envelope: byte-identical (NS xattn + DCN-V2 fusion + per-domain encoder)
+  - H010 F-1: NS-only enrichment safe pattern → H014 mechanism 변경 0 → 안전
+  - H010 F-3: NS xattn entropy 0.81 selective routing → H014 entropy 변화 측정 (P3, threshold 6.97)
+  - H011 F-5: cohort drift hard ceiling 가설 → H014 P6 gap monitor 로 검증 (long-seq 가 cohort 완화하는지)
+  - H012 F-3: 4-layer ceiling diagnosis → H014 = L4 (truncate) 검증 (마지막 unexplored axis)
+  - H013 F-1 (Frame A REFUTED): L1 retire → L4 우선순위 강화
+  - §3.5 데이터 사실: domain p50/p90/max/frac_empty per domain — H014 motivation 직접 출처
+
+decision_tree_post_result:
+  strong: |
+    Δ vs H010 ≥ +0.005pt + P1/P3/P4 PASS →
+    L4 confirmed. anchor 갱신 (H014 = 새 baseline). H015 = TWIN/SIM/HSTU
+    (target-aware retrieval) 또는 더 큰 expansion (1024). P2 phase entry.
+  measurable: |
+    Δ ∈ [+0.001, +0.005pt] →
+    L4 partial. anchor 갱신 검토. H015 = retrieval combo 또는 cohort H.
+  noise: |
+    Δ ∈ (−0.001, +0.001pt] →
+    Dense expansion 효과 없음. retrieval/compression mandatory.
+    H015 = TWIN/SIM (retrieval) 또는 cohort H (Frame B). paradigm shift inevitable.
+  degraded: |
+    Δ < −0.001pt →
+    긴 seq noise 추가. sub-H = seq 256 uniform 또는 retrieval-based.
+  oom: |
+    P1 OOM →
+    sub-H = (a) seq 256 uniform, (b) seq 128/128/256/256 conservative, (c) batch 256 복귀.
+  cohort_ceiling: |
+    P6 gap > 2.5pt →
+    cohort drift 강화. Frame B 강한 confirm. cohort H 우선.
+
+code_package_status: BUILT
+build_artifacts:
+  - experiments/H014_long_seq_envelope/upload/        # 12 files (코드 byte-identical with H010, run.sh + README.md 변경)
+  - experiments/H014_long_seq_envelope/upload.tar.gz  # 64,243 bytes
+
+sanity_checks:
+  - syntax: "ast.parse OK for model.py / train.py / infer.py / trainer.py / dataset.py"
+  - mechanism_unchanged: "model.py byte-identical with H010 (sha256 검증 가능)"
+  - run_sh_diff: "1 change vs H010/upload/run.sh — seq_max_lens only"

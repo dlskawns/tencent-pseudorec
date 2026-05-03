@@ -1,0 +1,140 @@
+id: H011_aligned_pair_encoding
+hypothesis_id: H011_aligned_pair_encoding
+slug: aligned_pair_encoding
+status: ready
+compute_tier: T2.4 extended (10ep × 30%, patience=3) ~3-3.5h
+claim_scope: |
+  Aligned <id, weight> pair encoding at input embedding lookup. For each verified
+  shared fid in {62, 63, 64, 65, 66, 89, 90, 91} (8 fids, 출처 ns_groups.json
+  + eda/out/aligned_audit.json), replace baseline mean-pool with per-row
+  L1-normalized weighted mean using user_dense_feats slice as weights (Option α,
+  parameter-free). H010 anchor (NS xattn) + H008 anchor (DCN-V2 fusion) byte-
+  identical → input-stage mutation, downstream 텐서 byte-identical → H009 위치
+  충돌 회피 by 설계. CLAUDE.md §4.8 mandate (aligned 한쌍 이동) 직접 구현.
+
+control: H010_ns_to_s_xattn (anchor, Platform 0.8408) + H008 carry-forward (0.8387)
+
+treatment: |
+  H010 envelope + H010 mechanism + H008 mechanism byte-identical. PLUS:
+  --use_aligned_pair_encoding 활성화. RankMixerNSTokenizer.forward 가 두 번째
+  optional arg dense_feats 받음. aligned fid k 의 mean-pool 단계에서 per-row
+  L1-normalized weighted mean (sign 보존, NaN 안전). non-aligned fids + dense-only
+  {61, 87} 변경 없음.
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 256
+  num_epochs: 10
+  patience: 3
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.3
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+  fusion_type: dcn_v2                      # H008 anchor 그대로
+  dcn_v2_num_layers: 2                     # H008 anchor 그대로
+  dcn_v2_rank: 8                           # H008 anchor 그대로
+  use_ns_to_s_xattn: true                  # H010 anchor 그대로
+  ns_xattn_num_heads: 4                    # H010 anchor 그대로
+  log_attn_entropy: true                   # H010 anchor 그대로
+  use_aligned_pair_encoding: true          # H011 NEW
+  aligned_pair_fids: [62, 63, 64, 65, 66, 89, 90, 91]  # H011 NEW (8 verified fids)
+
+run_command: bash experiments/H011_aligned_pair_encoding/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 150                     # ~2.5-3.5시간 with patience=3, params 추가 0이라 H010 동급
+
+falsification:
+  P0: aligned fid mapping audit (verified 2026-05-01 — eda/out/aligned_audit.json PASS)
+  P1: NaN abort or non-finite best_val_AUC (Option α dispatch 오류 또는 L1 norm clamp 실패)
+  P2: Δ vs anchor (H010 0.8408) < +0.001pt (binary measurable lift threshold relaxed at sample-scale)
+  P2_strong: Δ vs H010 ≥ +0.005pt (strong PASS)
+  P3: NS xattn entropy 변화 (H010 baseline [0.8127, 0.8133]); 더 sparse / 변화 미세 / 더 uniform 분류 (mechanism check)
+  P4: any §18 인프라 회귀
+  P5: not falsifying — val ↔ platform alignment 보너스
+  P6: not falsifying — OOF-platform gap (H010 baseline 1.88pt) 유지
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  torch: 2.7.1+cu126
+  config_sha256: TBD                       # launch 후 metrics.json
+  total_param_count: TBD                   # H010 동급 (~198M, params 추가 0)
+
+mutation_class:
+  axis: feature_engineering
+  type: stacking-on-champion (H010 anchor 위 input-stage single mutation)
+  rotation: feature_engineering 신규 first-touch (§10.7 FREE — 직전 2 H = H009 hybrid + H010 target_attention)
+
+infra_inheritance:
+  - §18 모든 룰 inherit (H010 패키지 over-overlay)
+  - infer.py 추가 cfg keys (use_aligned_pair_encoding, aligned_pair_fids) read-back
+  - H010 §10.9 attn entropy active 유지
+  - aligned_user_dense_specs 재구성 (train.py / infer.py 양쪽에서 schemas 기반 자동 산출)
+
+carry_forward_from_prior:
+  - H010 F-1: NS-only enrichment safe pattern → H011 input-stage enrichment 도 같은 원리 (downstream byte-identical)
+  - H010 F-3: NS xattn entropy 0.81 (highly selective routing) → H011 weighted embedding 입력 변경 시 entropy 가 어떻게 변하는지 P3 mechanism check
+  - H010 F-4: anchor 갱신 → H010 (Platform 0.8408) 이 control
+  - H008 F-1: DCN-V2 fusion (interaction axis) 그대로
+  - H009 F-1: stacking interference signature → H011 위치 (input embedding lookup) 가 anchor 입력 byte-identical 로 회피
+  - §4.8 mandate: aligned 한 쌍 이동 — H011 이 직접 구현
+  - eda/out/aligned_audit.json: P0 PASS (2026-05-01)
+  - eda/out/dense_value_stats.json: gap #3 PASS — Option α 선택 근거
+
+decision_tree_post_result:
+  strong_pass: |
+    Δ vs anchor (H010) ≥ +0.005pt + P0/P1/P3/P4 PASS →
+    H011 strong PASS. anchor 갱신 (H011 = 새 baseline).
+    H012 = orthogonal axis (multi_domain_fusion 또는 NS xattn sub-H, rotation 룰 따라).
+  measurable: |
+    Δ vs anchor ∈ [+0.001, +0.005pt] →
+    H011 PASS (additive). anchor 갱신 검토.
+    H012 = 다른 axis 또는 aligned pair sub-form (gated_multiply, sigmoid).
+  noise: |
+    Δ vs anchor ∈ (−0.001, +0.001pt) →
+    H011 noise. baseline 이 이미 implicit binding 학습 충분 가설 (Frame B 채택).
+    anchor 갱신 안 함. H012 = MMoE/PLE (Frame C 전환) 또는 aligned sub-form.
+  degraded: |
+    Δ vs anchor < −0.001pt →
+    H011 REFUTED. mechanism 또는 매핑 issue.
+    매핑 재확인 + scale handling sub-form (sigmoid 게이팅 등).
+  invalid: |
+    P0 fail OR P1 NaN abort OR config_sha256 mismatch →
+    INVALID. eda/out/ 재검증 + Option α clamp 디버깅.
+
+code_package_status: BUILT
+build_artifacts:
+  - experiments/H011_aligned_pair_encoding/upload/        # 12 files
+  - experiments/H011_aligned_pair_encoding/upload.tar.gz  # ~64 KB
+
+sanity_checks:
+  - syntax: "ast.parse OK for model.py / train.py / infer.py / trainer.py / dataset.py"
+  - dummy_forward: |
+      Test 1 (Pattern X dense max=18M): finite, |out|.max=2.34
+      Test 2 (Pattern Y dense [-1,+1]): finite, |out|.max=3.32
+      Test 3 (baseline dense=None): finite
+      Test 4 (uniform weights ≡ baseline): diff=4e-7 PASS
+      Test 5 (zero-row safety, clamp 1e-8): finite
+      Param-free: 7680 params before/after

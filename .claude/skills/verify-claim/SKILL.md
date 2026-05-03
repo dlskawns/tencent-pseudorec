@@ -25,9 +25,18 @@ description: Use when cloud training results return — user pastes metrics.json
 
 ## Inputs
 
-**필수**:
-- `metrics.json` — best_val_AUC, best_oof_AUC, best_step, config_sha256, git_sha, host, split_meta
+**필수 (§18.8 format, H018+ default)**:
+- **§18.8 TRAIN SUMMARY block** — `==== TRAIN SUMMARY (HXXX_slug) ====`
+  부터 `==== END SUMMARY ====` 까지 단일 블록. 사용자가 stdout 마지막
+  ~15줄 그대로 paste. 모든 핵심 metric (best/last/overfit/calib +
+  per-epoch trajectory) 한 번에.
+- **Platform AUC** — 사용자 별도 paste (Taiji 채점 결과 단일 숫자).
+
+**필수 (legacy fallback, pre-H018)**:
+- `metrics.json` — best_val_AUC, best_oof_AUC, best_step, config_sha256,
+  git_sha, host, split_meta
 - 학습 로그 마지막 50–200줄 (NaN check, 실제 wall, 이상 징후)
+- `eval auc: 0.XXXXXX` 단일 라인 (legacy 포맷)
 
 **선택**:
 - `training_result.md` 본문 (사용자 채운 양식)
@@ -35,6 +44,48 @@ description: Use when cloud training results return — user pastes metrics.json
 - 플랫폼 메타 (실제 GPU, 비용, 큐 시간)
 
 ## Workflow
+
+### 0. Parsing §18.8 TRAIN SUMMARY block (H018+ primary path)
+
+**Anchors (변경 금지 — 정규식 파싱)**:
+- 시작: `^==== TRAIN SUMMARY \((?P<exp_id>[^)]+)\) ====$`
+- 종료: `^==== END SUMMARY ====$`
+
+**Required fields (parse 후 metrics.json 으로 정규화)**:
+
+| 필드 (SUMMARY) | metrics.json 키 | 정규식 hint |
+|---|---|---|
+| `git=<sha7>` | `git_sha` | `git=([a-f0-9]{7,})` |
+| `cfg=<sha8>` | `config_sha256` (앞 8자 only) | `cfg=([a-f0-9]{6,})` |
+| `seed=<int>` | `seed` | `seed=(\d+)` |
+| `ckpt_exported=<best\|last>` | `ckpt_exported` | `ckpt_exported=(best\|last)` |
+| epoch table rows | `epoch_history[]` | `^\s*(\d+)\s*\|\s*([\d.NA/]+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)$` |
+| `best=epoch<N>` ... | `best_epoch`, `best_val_auc`, `best_oof_auc` | `best=epoch(\d+)\s+val=([\d.]+)\s+oof=([\d.]+)` |
+| `last=epoch<N>` ... | `last_epoch`, `last_val_auc`, `last_oof_auc` | `last=epoch(\d+)\s+val=([\d.]+)\s+oof=([\d.]+)` |
+| `overfit=<+/-float>` | `overfit_gap` | `overfit=([+-]?[\d.]+)` |
+| `calib pred=` ... | `calib_pred_mean`, `calib_label_mean`, `ece` | `calib pred=([\d.]+) label=([\d.]+) ece=([\d.]+)` |
+
+**Computed fields (parser 가 platform AUC 받은 후 산출)**:
+
+- `val_platform_gap` = `best_val_auc − platform_auc`
+- `oof_platform_gap` = `best_oof_auc − platform_auc` (redefined OOF, H016 default)
+- `last_minus_best_val` = `last_val_auc − best_val_auc` (음수면 best 가 마지막보다 좋음 = 정상 overfit)
+
+**OOF default (H016 carry-forward)**: `best_oof_auc` 컬럼은
+**redefined OOF (label_time future-only quantile 0.9 cutoff)** 만 기록.
+legacy random-user OOF 는 saturated 0.858~0.860 → ranking decision 무용 →
+metrics.json 에 별도 `legacy_oof_auc` 필드로 분리 (보조용).
+
+### 0.5 Fallback — legacy format (pre-H018)
+
+SUMMARY 블록 미감지 시:
+1. **WARN to user**: "§18.8 SUMMARY block not found. Falling back to
+   legacy `eval auc:` parsing. Upgrade `train.py` to emit_train_summary()
+   per `notes/refs/inference_lessons.md` §18.8 for richer metrics."
+2. Parse `eval auc: 0.XXXXXX` 단일 라인 → `best_val_auc` 로 매핑 (정확
+   하지 않음, last epoch 일 가능성).
+3. `overfit_gap`, `calib_*` 등 신규 필드 = `null`. P5/P6 row = WARN 표시.
+4. verdict 진행 가능하지만 **"신호 빈약"** 표기.
 
 ### 1. Sanity gate (실패 시 차단)
 
@@ -178,3 +229,5 @@ NEXT (iter+1)
 5. **6-artifact 부분 갱신**: 시간 부족하다고 progress.txt 만 빼거나 INDEX 만 빼면 안 됨. 원자성.
 6. **paired Δ 단위 혼동**: platform AUC primary (H006 F-3). OOF AUC 는 supplementary.
 7. **Active Pipeline 행 미이동**: H 가 verdict 받았는데 INDEX 의 Active Pipeline 에 남아있으면 다음 세션 혼란.
+8. **§18.8 SUMMARY 마커 변형 수용**: `==== TRAIN SUMMARY (` / `==== END SUMMARY ====` 외 형식 (예: `### TRAIN SUMMARY`, `--- summary ---`) 은 INVALID. 사용자에게 train.py 수정 요청, verdict 미작성.
+9. **legacy OOF (saturated 0.858~0.860) 를 ranking signal 로 사용**: H016 redefine 이후 legacy OOF 는 noise. `best_oof_auc` = redefined OOF only. legacy 는 `legacy_oof_auc` 보조 필드.

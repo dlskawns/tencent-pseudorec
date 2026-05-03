@@ -1,0 +1,122 @@
+id: H016_oof_future_redefine
+hypothesis_id: H016_oof_future_redefine
+slug: oof_future_redefine
+status: ready
+compute_tier: T2.4 extended (10ep × 30%, patience=3) ~3-4h
+claim_scope: |
+  OOF 재정의 — random user holdout → label_time future-only holdout.
+  cohort drift 의 Frame C form (measurement procedure 측). H010 mechanism +
+  envelope byte-identical, dataset.py + train.py 만 변경.
+  Goal: 9 H 의 OOF stable / Platform 변동 패턴이 OOF measure 정합성 문제인지
+  검증. **Triple-H setup with H015 / H017 동시 launch** (L2 multi-form attack).
+  paired Δ baseline 일부 깨짐 인정 (OOF 정의 다름) — Platform 비교만 valid.
+
+control: H010_ns_to_s_xattn corrected eval (Platform 0.837806). Sibling: H015
+  (paired same axis, different form).
+
+treatment: |
+  H010 envelope + mechanism byte-identical. PLUS:
+  --oof_split_type future_label_time (was 'random_user' default).
+  dataset.py 의 _RowFilter (oof_cutoff field) + split_parquet_by_label_time +
+  get_pcvr_data_v2 에 oof_split_type 분기 추가.
+  Logic:
+    OOF: rows with label_time >= quantile(label_time, 0.9).
+    valid: rows with quantile(0.85) <= label_time < quantile(0.9).
+    train: rows with label_time < quantile(0.85).
+
+config:
+  use_label_time_split: true
+  oof_user_ratio: 0.1                      # H016 에서 quantile cutoff 로 작동
+  split_seed: 42
+  ns_tokenizer_type: rankmixer
+  user_ns_tokens: 5
+  item_ns_tokens: 2
+  num_queries: 2
+  num_hyformer_blocks: 2
+  num_heads: 4
+  d_model: 64
+  emb_dim: 64
+  seq_encoder_type: transformer
+  hidden_mult: 4
+  dropout_rate: 0.01
+  use_time_buckets: true
+  rank_mixer_mode: full
+  loss_type: bce
+  lr: 1.0e-4
+  sparse_lr: 0.05
+  batch_size: 2048
+  num_epochs: 10
+  patience: 3
+  seed: 42
+  emb_skip_threshold: 1000000
+  num_workers: 2
+  buffer_batches: 4
+  train_ratio: 0.3
+  seq_max_lens: "seq_a:64,seq_b:64,seq_c:128,seq_d:128"
+  backbone: hyformer
+  fusion_type: dcn_v2
+  dcn_v2_num_layers: 2
+  dcn_v2_rank: 8
+  use_ns_to_s_xattn: true
+  ns_xattn_num_heads: 4
+  log_attn_entropy: true
+  oof_split_type: future_label_time        # H016 NEW (was 'random_user' default)
+
+run_command: bash experiments/H016_oof_future_redefine/upload/run.sh
+metrics_target_path: TRAIN_CKPT_PATH/metrics.json
+expected_wall_min: 180
+
+falsification:
+  P0: train cohort sufficient — train ~85% × dataset size
+  P1: NaN abort
+  P2: Δ Platform vs H010 corrected (0.837806) — strong | measurable | noise | degraded
+  P3: NS xattn entropy 변화 미세 expected
+  P4: §18 PASS
+  P5: val ↔ platform (val 새 정의 인지)
+  P6: OOF-Platform gap (단일 측정값, prior H 비교 invalid)
+  P7: train cohort 변화 (~10% 감소)
+
+repro_meta:
+  seed: 42
+  python: 3.10 (Taiji)
+  cuda: 12.6
+  config_sha256: TBD
+
+mutation_class:
+  axis: temporal_cohort (H015 sibling, different form)
+  type: measurement procedure mutation (OOF 정의)
+  rotation: temporal_cohort 카테고리 H015 first-touch + H016 sub-form (§10.7 변형 패턴 정합)
+
+infra_inheritance:
+  - H010 mechanism + envelope byte-identical
+  - infer.py / model.py / trainer.py / utils.py byte-identical
+  - dataset.py + train.py 만 변경
+
+carry_forward_from_prior:
+  - H010 mechanism (NS xattn + DCN-V2): byte-identical
+  - H010 corrected (0.837806) = anchor
+  - 9 H OOF stable / Platform 변동 패턴 → H016 의 핵심 동기
+  - H011~H014 cohort drift hard ceiling 가설 누적
+  - H015 sibling — train-side approach 대비 OOF-side approach
+
+decision_tree_post_result:
+  strong: |
+    Δ vs H010 ≥ +0.005pt → OOF 재정의 가 measurement 정합성 회복.
+    anchor = H016. H018 = OOF variants 또는 OOF + recency combo.
+  measurable: |
+    Δ ∈ [+0.001, +0.005pt] → partial. anchor 갱신 검토.
+  noise: |
+    Δ ≤ +0.001pt + (H015 / H017 도 noise) → **L2 retire confirmed**.
+    paradigm shift mandatory. H018 = backbone replacement.
+  degraded: |
+    Δ < −0.001pt → train cohort 감소 disrupt. sub-H = oof_user_ratio 5%.
+
+code_package_status: BUILT
+build_artifacts:
+  - experiments/H016_oof_future_redefine/upload/        # 12 files (H010 base + dataset.py + train.py + run.sh + README)
+  - experiments/H016_oof_future_redefine/upload.tar.gz  # 65,220 bytes
+
+sanity_checks:
+  - syntax: "ast.parse OK for model.py / train.py / infer.py / trainer.py / dataset.py"
+  - mechanism_unchanged: "model.py / infer.py / trainer.py / utils.py byte-identical with H010"
+  - oof_split_type: "future_label_time → OOF = label_time >= quantile(0.9), train ~85%, valid ~5%"

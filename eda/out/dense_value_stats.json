@@ -1,0 +1,197 @@
+{
+  "n_rows": 1000,
+  "per_fid": {
+    "61": {
+      "role": "dense-only",
+      "stats": {
+        "n": 255488,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_finite": 255488,
+        "n_negative": 132208,
+        "n_zero_value": 0,
+        "min": -0.2510703206062317,
+        "max": 0.20129907131195068,
+        "mean": -0.0011224951921586298,
+        "std": 0.062344391098451385,
+        "p01": -0.1278448724746704,
+        "p50": -0.0023778689792379737,
+        "p99": 0.13253478765487675
+      }
+    },
+    "62": {
+      "role": "aligned",
+      "stats": {
+        "n": 2114,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_finite": 2114,
+        "n_negative": 0,
+        "n_zero_value": 0,
+        "min": 32.0,
+        "max": 4954893.0,
+        "mean": 136400.6645683642,
+        "std": 342585.6127434175,
+        "p01": 690.16,
+        "p50": 30900.8212890625,
+        "p99": 1562022.6649999972
+      }
+    },
+    "63": {
+      "role": "aligned",
+      "stats": {
+        "n": 2555,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_finite": 2555,
+        "n_negative": 0,
+        "n_zero_value": 0,
+        "min": 6.0,
+        "max": 4860850.0,
+        "mean": 128705.32594302302,
+        "std": 333811.83082996216,
+        "p01": 499.28,
+        "p50": 26826.650390625,
+        "p99": 1536556.2725000002
+      }
+    },
+    "64": {
+      "role": "aligned",
+      "stats": {
+        "n": 3822,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_finite": 3822,
+        "n_negative": 0,
+        "n_zero_value": 0,
+        "min": 23.0,
+        "max": 12762341.0,
+        "mean": 121708.92638450315,
+        "std": 410811.13866878365,
+        "p01": 496.63,
+        "p50": 23149.25,
+        "p99": 1635707.9237499994
+      }
+    },
+    "65": {
+      "role": "aligned",
+      "stats": {
+        "n": 5713,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_finite": 5713,
+        "n_negative": 0,
+        "n_zero_value": 0,
+        "min": 5.0,
+        "max": 18401112.0,
+        "mean": 146881.66346952523,
+        "std": 535104.8531997856,
+        "p01": 436.36,
+        "p50": 23530.0,
+        "p99": 1922127.515000006
+      }
+    },
+    "66": {
+      "role": "aligned",
+      "stats": {
+        "n": 7139,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_finite": 7139,
+        "n_negative": 0,
+        "n_zero_value": 0,
+        "min": 5.0,
+        "max": 18401112.0,
+        "mean": 198935.56615578273,
+        "std": 717726.767821666,
+        "p01": 452.52,
+        "p50": 25415.0,
+        "p99": 3081734.579999995
+      }
+    },
+    "87": {
+      "role": "dense-only",
+      "stats": {
+        "n": 315200,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_finite": 315200,
+        "n_negative": 63064,
+        "n_zero_value": 193366,
+        "min": -0.6841999888420105,
+        "max": 0.6844000220298767,
+        "mean": -0.004027121611344011,
+        "std": 0.10984077248351636,
+        "p01": -0.3684999942779541,
+        "p50": 0.0,
+        "p99": 0.33320100754499526
+      }
+    },
+    "89": {
+      "role": "aligned",
+      "stats": {
+        "n": 9450,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_finite": 9450,
+        "n_negative": 5818,
+        "n_zero_value": 19,
+        "min": -0.7245000004768372,
+        "max": 0.9086999893188477,
+        "mean": -4.7661228146694756e-05,
+        "std": 0.31622768377413085,
+        "p01": -0.5492510068416595,
+        "p50": -0.005100000184029341,
+        "p99": 0.7695509952306747
+      }
+    },
+    "90": {
+      "role": "aligned",
+      "stats": {
+        "n": 9090,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_finite": 9090,
+        "n_negative": 5612,
+        "n_zero_value": 25,
+        "min": -0.723800003528595,
+        "max": 0.8787999749183655,
+        "mean": -5.1408094924748325e-05,
+        "std": 0.3162280002155329,
+        "p01": -0.5472550201416015,
+        "p50": -0.005249999929219484,
+        "p99": 0.7725219821929933
+      }
+    },
+    "91": {
+      "role": "aligned",
+      "stats": {
+        "n": 5500,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_finite": 5500,
+        "n_negative": 3242,
+        "n_zero_value": 7,
+        "min": -0.7804999947547913,
+        "max": 0.9075999855995178,
+        "mean": 4.364268732553517e-07,
+        "std": 0.31622758937920376,
+        "p01": -0.5996160167455673,
+        "p50": -0.004699999932199717,
+        "p99": 0.7924110025167468
+      }
+    }
+  },
+  "h011_scale_decisions": {
+    "61": "negatives present \u2014 sign-flip risk, sigmoid \ub610\ub294 abs",
+    "62": "large variance \u2014 LayerNorm or sigmoid recommended",
+    "63": "large variance \u2014 LayerNorm or sigmoid recommended",
+    "64": "large variance \u2014 LayerNorm or sigmoid recommended",
+    "65": "large variance \u2014 LayerNorm or sigmoid recommended",
+    "66": "large variance \u2014 LayerNorm or sigmoid recommended",
+    "87": "negatives present \u2014 sign-flip risk, sigmoid \ub610\ub294 abs",
+    "89": "negatives present \u2014 sign-flip risk, sigmoid \ub610\ub294 abs",
+    "90": "negatives present \u2014 sign-flip risk, sigmoid \ub610\ub294 abs",
+    "91": "negatives present \u2014 sign-flip risk, sigmoid \ub610\ub294 abs"
+  }
+}
