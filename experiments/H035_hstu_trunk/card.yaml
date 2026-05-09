@@ -1,0 +1,141 @@
+# H035 — Experiment Card
+# Generated 2026-05-06. Paradigm shift — backbone_replacement class first-touch.
+# Trigger: data_ratio=1 → eval 0.837785 (< ratio=0.3 의 0.839674) ceiling signal +
+# retrieval_long_seq 4회 연속 후 강제 rotation.
+
+hypothesis_id: H035_hstu_trunk
+control_exp_id: H019_twin_long_seq_retrieval   # paired Δ primary (cloud actual 0.839674)
+secondary_control: H010_ns_to_s_xattn          # corrected anchor 0.837806
+parallel_pivot:
+  - H020_learnable_gsu                          # in flight, retrieval class
+  - H021_per_domain_top_k                       # in flight, retrieval class
+  - H033_twin_combined                          # built, retrieval class stacking
+  - H034_esu_2layer                             # built, retrieval class capacity
+  # H035 = first backbone_replacement class entry — orthogonal paradigm shift class
+
+mutation:
+  class: backbone_replacement                   # primary_category (NEW first-touch)
+  type: paradigm_shift_class_change             # mechanism class 자체 변경 (transformer → HSTU)
+  description: |
+    per-domain sequence encoder 를 TransformerEncoder (softmax MHA + GELU FFN)
+    → HSTUEncoder (pointwise silu-attention + gated linear unit) 으로 swap.
+    paper-faithful core (Meta 2024 ICML, arXiv:2402.17152, eq. 1-3):
+      h = SiLU(LN(x) · W_uvqk).chunk(4) → U, V, Q, K
+      A = silu(QK^T / sqrt(d)) / L
+      Y = A @ V
+      out = LN(W_o · (Y ⊙ U)) + x
+    H019 의 다른 모든 부분 (TWIN GSU+ESU, NS xattn, DCN-V2, gate=-2.0,
+    top_k=64, seq_max_lens 256/256/256/256, batch=1024) byte-identical.
+  single_mutation_compliance: |
+    §17.2 — per-domain seq encoder type 의 단일 변경 (--seq_encoder_type
+    transformer → hstu). NS xattn / DCN-V2 / TWIN module / aggregator / gate /
+    num_heads 전부 H019 byte-identical.
+
+carry_forward:
+  - H019: TWIN module + ESU + aggregator + gate=-2.0 + num_heads=4 + top_k=64 byte-identical
+  - H010: NS xattn + DCN-V2 stack byte-identical
+  - §18.7: label_time fill_null + zero_copy_only=False (H015 carry)
+  - §18.8: emit_train_summary() at end of train.py (H019 carry)
+  - H016: redefined OOF default
+
+compute_tier: T2.4
+expected_runtime_h: 3.5
+cost_estimate_usd: 7.0
+cost_cap_usd: 10.0
+cumulative_cost_h_estimate: 67.5                # H006-H034 ~64h + H035 3.5h
+campaign_cost_cap_usd: 100.0
+
+success_criterion:
+  primary: "Δ vs H019 (cloud actual 0.839674) platform AUC ≥ +0.005pt"
+  binary_classifications:
+    strong: "Δ ≥ +0.005pt → mechanism class lever 진짜, anchor = H035, 0.85 도달 가능성 (ensemble + cohort 추가)"
+    measurable: "Δ ∈ [+0.001, +0.005pt] → 약 effect, sub-H 후보 (HSTU full form, multi-layer)"
+    noise: "Δ ∈ (-0.001, +0.001pt] → mechanism class 도 dead, cohort drift (L2) 가 진짜 hard ceiling, H036_cohort_embed 강제"
+    degraded: "Δ < -0.001pt → HSTU 본 데이터 부적합 (Frame B), retire 또는 HSTU full form (RAB 추가)"
+  secondary:
+    delta_vs_h010: "Δ vs H010 corrected (0.837806) = +0.001868 + H035 Δ. ≥ +0.007pt → 0.85 까지 +0.005pt 만 남음"
+    val_platform_gap: "≤ +0.01pt (P5)"
+    oof_platform_gap_redefined: "≤ +0.01pt (P6)"
+    overfit_gap: "≤ +0.005pt"
+    cost_cap: "actual ≤ $10 (P7)"
+    target_0_85_path: "Δ vs H010 ≥ +0.0103pt 가 0.85 도달. H035 strong 단독 (+0.005pt) 만으로 미달 — ensemble + cohort 조합 필요"
+
+ckpt_export: best
+
+falsification:
+  primary_claim: |
+    per-domain seq encoder 의 transformer (softmax MHA + FFN) → HSTU
+    (silu-attention + gated linear unit) 변경이 H019 anchor 위 Δ ≥ +0.005pt
+    추가 lift 만든다. 거짓 → mechanism class 도 ceiling 못 풂 → cohort
+    drift (L2) 가 진짜 hard ceiling 강한 confirm → H036_cohort_embed 강제.
+  decision_tree_post_result:
+    strong:
+      - anchor = H035
+      - sub-H = HSTU full form (relative attention bias 추가) 또는 HSTU + retrieval stack
+      - 0.85 까지: ensemble (H010 + H035) + H036 cohort attack
+    measurable:
+      - sub-H = HSTU multi-layer per hyformer block 또는 HSTU + H020 stack
+      - 약 effect 누적 → ensemble 가치 큼
+    noise:
+      - mechanism class 도 dead — Frame A confirmed
+      - cohort drift (L2) 강제 attack
+      - H036_cohort_embed 즉시 build + cloud submit
+      - retrieval class + backbone class 모두 retire
+    degraded:
+      - HSTU 본 데이터 부적합 — Frame B confirmed
+      - sub-H = HSTU full form (RAB 추가) 또는 OneTrans full backbone
+      - 또는 retire (paper claim 본 환경 외 일반화 안 됨)
+
+implementation_spec: experiments/H035_hstu_trunk/upload/README.md
+upload_dir: experiments/H035_hstu_trunk/upload/
+auditor_invocation_required: true
+
+reproducibility:
+  seed: 42
+  git_sha: TBD
+  config_sha256: TBD
+  python: "3.11"
+  venv: ".venv-arm64"
+  host: "TBD (cloud platform: T2.4 Taiji 또는 동급)"
+
+verify_claim_dry_run:
+  format: §18.8 SUMMARY block
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H035_hstu_trunk) ===="
+    end: "==== END SUMMARY ===="
+
+rotation_audit:
+  primary_category: backbone_replacement
+  rotation_status: AUTO_JUSTIFIED                # NEW first-touch (미경험 카테고리)
+  prior_h_categories:
+    - H034: retrieval_long_seq (capacity axis built)
+    - H033: retrieval_long_seq (stacking built)
+    - H021: retrieval_long_seq (quantity axis in flight)
+    - H020: retrieval_long_seq (scoring axis in flight)
+    - H019: retrieval_long_seq (paradigm shift first entry)
+    - H018: temporal_cohort
+  unexplored_categories_remaining_after_h035:
+    - debiasing
+    - cohort_drift_attack (L2 — H036 candidate)
+  post_h035_rotation_mandate: |
+    H035 PASS strong → sub-H = HSTU full form (rotation 정당화 needed).
+    H035 PASS measurable → multi-layer 또는 ensemble.
+    H035 noise → H036_cohort_embed 강제 (cohort_drift_attack first-touch).
+    H035 degraded → OneTrans full backbone 또는 retire.
+
+prerequisite_for_h035_launch:
+  - 누적 cost audit (H019/H020/H021/H033 cloud actual + Subset A H022/H028~H031 actual)
+  - upload/ package construction + dataset-inference-auditor PASS (§18.6)
+  - H020/H021 결과 회수 권장 (paradigm shift 우선순위 재평가 — 단 H035 cloud submit 은 wait 필수 아님, H020/H021 와 직교 paradigm)
+
+build_status:
+  upload_package: BUILT 2026-05-06 (H019 fork + HSTUEncoder class + create_sequence_encoder dispatch + train.py choices + run.sh flag, syntax + functional tests PASS)
+  hypothesis_docs: COMPLETE (problem.md, challengers.md, transfer.md, predictions.md, lit_refs.md, verdict.md)
+  card_yaml: COMPLETE
+  next_step: |
+    1. (옵션) H020/H021 결과 회수 후 paradigm shift 우선순위 재평가.
+       - H020/H021 둘 다 PASS measurable+ → H035 후순위 (retrieval stack 우선).
+       - H020/H021 둘 다 noise → H035 즉시 cloud submit (mechanism class lever 가 진짜 last hope).
+    2. cloud T2.4 submit (`bash run.sh --seed 42`).
+    3. result 회수 → verify-claim → verdict.md + INDEX.md update.
+    4. PASS 시: sub-H 결정 / NOOP 시: H036_cohort_embed 즉시 build.

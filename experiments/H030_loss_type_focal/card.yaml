@@ -1,0 +1,58 @@
+hypothesis_id: H030_loss_type_focal
+control_exp_id: H023_variance_baseline_redo  # bce explicit baseline 0.8334
+secondary_control: H010_ns_to_s_xattn        # corrected anchor
+
+mutation:
+  class: measurement
+  type: loss_type_swap
+  description: |
+    H010 mechanism + envelope byte-identical, --loss_type focal --focal_alpha
+    0.25 --focal_gamma 2.0 explicit. Loss isolation diagnostic — 9 H
+    train_loss scale 다양 (0.12~0.32) → focal/bce ambiguity 가설 (#4)
+    검증. H005 focal pre-correction era → invalid. H030 = first valid
+    focal measurement on corrected eval.
+  single_mutation_compliance: |
+    §17.2 EXEMPT — measurement H. loss path 만 변경, mechanism stack
+    byte-identical.
+
+carry_forward:
+  - H010: NS xattn + DCN-V2 byte-identical
+  - H023: bce explicit baseline (paired Δ control)
+  - §18.7: label_time fill_null
+  - §18.8: emit_train_summary
+
+compute_tier: T2.4
+expected_runtime_h: 3.5
+cost_estimate_usd: 5.0
+cost_cap_usd: 5.0
+
+success_criterion:
+  primary: "Δ vs H023 (bce explicit, val_auc 0.8334)"
+  binary_classifications:
+    focal_strong: "Δ > +0.005pt → focal default 권장"
+    focal_measurable: "Δ ∈ (+0.001, +0.005pt] → sub-H γ sweep"
+    loss_irrelevant: "|Δ| ≤ 0.001pt → loss type 무관, train_loss 다른 origin"
+    bce_better: "Δ < -0.005pt → bce H023 regime confirm"
+
+ckpt_export: best
+rotation_audit:
+  primary_category: measurement
+  rotation_status: RE_ENTRY_JUSTIFIED
+  re_entry_justification: |
+    methodology framework — H011~H018 의 train_loss scale 차이 가
+    loss_type 다른 신호인지 isolation 필요. H005 pre-correction era 결과
+    invalid → corrected eval 에서 첫 측정.
+
+verify_claim_dry_run:
+  format: §18.8 SUMMARY block
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H030_loss_type_focal, seed=42) ===="
+    end: "==== END SUMMARY ===="
+
+build_status:
+  upload_package: BUILT
+  hypothesis_docs: COMPLETE (4 minimal docs)
+  card_yaml: COMPLETE
+  next_step: |
+    Single launch (T2.4, ~3.5h wall). 결과 회수 후 verify-claim:
+    Δ > +0.005pt → focal 채택, |Δ| ≤ 0.001pt → loss type 무관 confirm.

@@ -1,0 +1,55 @@
+hypothesis_id: H029_original_default_regime
+control_exp_id: H010_ns_to_s_xattn        # corrected anchor 0.837806
+secondary_control: H023_variance_baseline_redo  # bce explicit, batch=1024 baseline 0.8334
+
+mutation:
+  class: measurement
+  type: optimization_regime_swap
+  description: |
+    H010 mechanism + envelope byte-identical, --batch_size 256 + --lr 1e-4
+    (H010 train.py original default, 9 H 동안 한 번도 사용 안 됨).
+    Keskar trap diagnostic — batch=2048/1024 effective lr underpowered
+    가설 (#2 hypothesis) 검증.
+  single_mutation_compliance: |
+    §17.2 EXEMPT — measurement H. optimization regime 만 변경, mechanism
+    stack byte-identical.
+
+carry_forward:
+  - H010: NS xattn + DCN-V2 byte-identical
+  - H023: bce explicit (loss type fix carry-forward)
+  - §18.7: label_time fill_null
+  - §18.8: emit_train_summary
+
+compute_tier: T2.4
+expected_runtime_h: 6.0     # batch=256 → 8x steps per epoch (per-step faster, ~1.7x net wall)
+cost_estimate_usd: 7.0
+cost_cap_usd: 10.0          # per-job cap with margin
+
+success_criterion:
+  primary: "best_val_auc vs H023 baseline 0.8334"
+  binary_classifications:
+    keskar_confirmed: "val_auc > 0.840 → batch=256 default 향후 mandatory"
+    keskar_partial: "val_auc ∈ [0.836, 0.840] → sub-linear lr sweep"
+    keskar_REFUTED: "val_auc ≤ 0.836 → batch/lr 무관, ceiling 다른 원인"
+
+ckpt_export: best
+rotation_audit:
+  primary_category: measurement
+  rotation_status: RE_ENTRY_JUSTIFIED
+  re_entry_justification: |
+    methodology framework — 9 H 가 같은 batch+lr regime 사용 →
+    original default 검증이 framework prerequisite.
+
+verify_claim_dry_run:
+  format: §18.8 SUMMARY block
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H029_original_default_regime, seed=42) ===="
+    end: "==== END SUMMARY ===="
+
+build_status:
+  upload_package: BUILT
+  hypothesis_docs: COMPLETE (4 minimal docs)
+  card_yaml: COMPLETE
+  next_step: |
+    Single launch (T2.4, ~6h wall). 결과 회수 후 verify-claim:
+    val_auc > 0.840 면 Keskar confirmed → 모든 future H batch=256 권장.

@@ -1,0 +1,160 @@
+# H021 — Experiment Card
+# Generated 2026-05-06. Sub-H of H019 (TWIN per-domain top_k, quantity axis).
+# Parallel scaffold to H020 (scoring axis) — 두 axis 직교, 동시 cloud submit.
+
+hypothesis_id: H021_per_domain_top_k
+control_exp_id: H019_twin_long_seq_retrieval   # paired Δ primary (cloud actual 0.839674)
+secondary_control: H010_ns_to_s_xattn          # corrected anchor 0.837806 (carry-forward signal)
+parallel_sub_h: H020_learnable_gsu             # 직교 axis sub-H, paired 비교 framework
+
+mutation:
+  class: retrieval_long_seq                    # primary_category (re-entry from H019/H020, 3회 연속)
+  type: hyperparam_policy_refinement           # not class addition / not module change — top_k policy uniform → domain-aware
+  description: |
+    TWINBlock 의 top_k 를 도메인별로 다르게 instantiate.
+    `{a:64, b:64, c:64, d:96}` — domain d 만 50% 확장.
+    §3.5 quantitative motivation: domain d p90=2215 = K=64 의 top 2.9% (4 도메인 중 가장 under-served).
+    K=128 uniform sweep flat 영역의 75% conservative end.
+    TWINBlock class byte-identical to H019 (이미 top_k 를 init param 으로 받음).
+    PCVRHyFormer wiring + train.py argparse + run.sh 만 변경.
+  single_mutation_compliance: |
+    §17.2 — top_k policy 의 uniform → domain-aware 단일 변경. TWINBlock 내부
+    code 변경 0. ESU MultiheadAttention / GSU inner product / aggregator /
+    gate / num_heads / seq_max_lens 256/256/256/256 / batch 1024 / NS xattn /
+    DCN-V2 stack 전부 H019 byte-identical. trainable params 추가 0.
+
+carry_forward:
+  - H019: TWIN module + GSU + ESU + aggregator + gate=-2.0 + num_heads=4 byte-identical
+  - H010: NS xattn + DCN-V2 stack byte-identical (carry-forward through H019)
+  - §18.7: label_time fill_null + zero_copy_only=False (H015 carry, dataset.py 변경 없음)
+  - §18.8: emit_train_summary() at end of train.py (H019 carry, exp_id 만 변경)
+  - H016: redefined OOF default (--oof_redefine future_only)
+  - seq_max_lens 256/256/256/256 H019 carry (sweep saturation 영역)
+
+compute_tier: T2.4                             # H019/H020 동급
+expected_runtime_h: 3.5
+cost_estimate_usd: 7.0                         # T2.4 estimate
+cost_cap_usd: 10.0                             # §17.6 T2.4 per-run cap
+cumulative_cost_h_estimate: 60.5               # H006-H019 ~50h + H019 cloud 3.5h + H020 3.5h + H021 3.5h
+cumulative_cost_usd_estimate: TBD              # post H019/H020 cloud actual
+campaign_cost_cap_usd: 100.0                   # §17.6 per-campaign
+
+success_criterion:
+  primary: "Δ vs H019 (cloud actual 0.839674) platform AUC ≥ +0.003pt"
+  binary_classifications:
+    strong: "Δ ≥ +0.003pt → per-domain K lift, anchor = H021 (or H020 if H020 더 큼), H022 = 정량안 (a:96 d:128) sub-H"
+    measurable: "Δ ∈ [+0.001, +0.003pt] → 약 effect, H020 결과와 paired stack 가능성"
+    noise: "Δ ∈ (−0.001, +0.001pt] → uniform K=64 globally saturated, retrieval quantity axis dead → ESU(A3) 또는 cohort(C)"
+    degraded: "Δ < −0.001pt → K=96 noise injection 또는 inter-domain instability, sub-H K=80 또는 retire"
+  secondary:
+    delta_vs_h010: "Δ vs H010 corrected (0.837806) = +0.00187 + H021 Δ. ≥ +0.005pt → retrieval class 영구 confirm"
+    delta_vs_h020: "Δ vs H020 (cloud actual TBD) = paired axis comparison. H021 > H020 → quantity axis dominant. H020 > H021 → scoring axis dominant. 둘 다 PASS → H022 stack."
+    val_platform_gap: "≤ +0.01pt (P5, F-A baseline mean −0.003pt)"
+    oof_platform_gap_redefined: "≤ +0.01pt (P6, H016 baseline −0.004pt)"
+    overfit_gap: "≤ +0.005pt (best_val − last_val)"
+    cost_cap: "actual ≤ $10 (P7, T2.4 per-run cap)"
+
+ckpt_export: best                              # §18.8 ckpt_exported field
+
+falsification:
+  primary_claim: |
+    TWIN top_k policy 의 uniform=64 → per-domain {a:64, b:64, c:64, d:96}
+    (domain d 만 50% 확장) 가 H019 anchor 위 Δ ≥ +0.003pt 추가 lift 만든다.
+    만약 거짓 → uniform K=64 가 모든 도메인에서 effective limit (Frame A 또는
+    B confirmed) → retrieval class 의 quantity axis dead. ESU capacity (A3)
+    또는 cohort drift (C) pivot.
+  decision_tree_post_result:
+    strong:
+      - anchor = H021 (or H020 if H020 더 큼)
+      - H022 = 정량안 (a:96 d:128) sub-H — H021 PASS 결과 후 더 공격적 K 확장 검증
+      - retrieval quantity axis 영구 confirm
+      - H020 도 PASS 면 H023 = stack (H020 + H021 동시 mutation)
+    measurable:
+      - quantity axis 약 effect
+      - H020 결과와 paired 비교 → 둘 다 measurable+ 면 H022 = stack
+      - H021 only measurable+ 면 H021 anchor + H022 = 정량안
+    noise:
+      - quantity axis NOOP (Frame A confirmed)
+      - retrieval class 의 quantity axis dead — uniform + per-domain 모두 saturation
+      - H020 결과와 paired: H020 도 noise 면 retrieval class 전체 saturation → ESU(A3) 또는 cohort(C)
+    degraded:
+      - K=96 too aggressive (Frame B 또는 C confirmed)
+      - sub-H 후보:
+        - K=80 (gentle expansion)
+        - 다른 도메인 (a:96 b:64 c:64 d:64) test
+        - per-domain LayerNorm rescale (Frame C confirmed 시)
+      - 모든 sub-H 실패 시 retire
+
+implementation_spec: experiments/H021_per_domain_top_k/upload_patch.md
+upload_dir: experiments/H021_per_domain_top_k/upload/                # NOT YET BUILT
+auditor_invocation_required: true                                    # §18.6 mandatory before cloud upload
+
+reproducibility:                               # §4.5
+  seed: 42
+  git_sha: TBD                                 # populate post-build
+  config_sha256: TBD                           # populate post-build
+  python: "3.11"
+  venv: ".venv-arm64"
+  host: "TBD (cloud platform: T2.4 Taiji 또는 동급)"
+
+verify_claim_dry_run:                          # §18.8
+  format: §18.8 SUMMARY block
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H021_per_domain_top_k) ===="
+    end: "==== END SUMMARY ===="
+  required_fields_check:
+    - git, cfg, seed, ckpt_exported
+    - epoch_history (≥1 row)
+    - best=epoch<N>, val=, oof=
+    - last=epoch<N>, val=, oof=
+    - overfit=<+/-float>
+    - calib pred=, label=, ece=
+
+rotation_audit:                                # §10.7 + §17.4
+  primary_category: retrieval_long_seq         # re-entry from H019/H020, 3회 연속
+  rotation_status: RE_ENTRY_JUSTIFIED          # not auto — 5 사유 명시 (challengers.md, H020 의 4 + H021 추가 1)
+  prior_h_categories:                          # post-H020
+    - H020: retrieval_long_seq (sub-H scoring axis)
+    - H019: retrieval_long_seq (paradigm shift first entry)
+    - H018: temporal_cohort
+    - H017: temporal_cohort
+    - H016: temporal_cohort
+    - H015: temporal_cohort
+  unexplored_categories_remaining_after_h021:
+    - backbone_replacement (OneTrans full / HSTU trunk / InterFormer 3-arch)
+    - debiasing
+  re_entry_justification:                      # §10.7 audit 통과 사유
+    - sweep saturation: top_k uniform sweep saturated (carry from H020)
+    - paper-faithful: H020 GSU + H021 K policy = paper extension/refinement (carry from H020)
+    - cost-effective: paradigm shift class 안 가장 cheap (carry from H020)
+    - falsification value: 4 outcome 모두 다음 H 결정 명확 (carry from H020)
+    - quantitative motivation: §3.5 domain d p90=2215 = K=64 의 top 2.9% (H021 추가 사유)
+  post_h021_rotation_mandate: |
+    H021 + H020 모두 noise → retrieval class 전체 saturation, 강제 rotation (backbone_replacement / debiasing / cohort attack).
+    H021 PASS strong (and H020 도 PASS) → H022 = stack (axis 두 개 동시 mutation, single H 안 두 변경 - challengers.md 정당화 필요).
+    H021 only PASS → H022 = 정량안 (a:96 d:128 - 더 공격적 K 확장).
+    H021 noise + H020 PASS → H022 = H020 sub-H (projection dim 확장 또는 ESU 변경).
+
+prerequisite_for_h021_launch:
+  - 누적 cost audit (Subset A H028~H031 actual + H019 cloud actual + H020 cloud submit timing)
+  - upload/ package construction + dataset-inference-auditor PASS (§18.6)
+  - H020 와 동시 또는 직후 cloud submit (paired 비교 framework 효과 위해 동기화 권장)
+
+build_status:
+  upload_package: BUILT 2026-05-06 (forked from H019 upload/, 4 file patch applied per upload_patch.md, syntax + functional tests PASS)
+  hypothesis_docs: COMPLETE (problem.md, challengers.md, transfer.md, predictions.md, lit_refs.md, verdict.md placeholder)
+  card_yaml: COMPLETE (this file)
+  next_step: |
+    1. H020 와 동시 또는 H020 직후 cloud submit (paired 비교 framework).
+    2. H021 upload/ build:
+       - fork experiments/H019_twin_long_seq_retrieval/upload/ byte-by-byte
+       - model.py: PCVRHyFormer __init__ 의 twin_top_k arg type int → int|dict (~5 lines), instantiation loop 변경 (~3 lines)
+       - train.py: argparse `--twin_top_k_per_domain` 추가 (1 line) + parsing logic (~5 lines)
+       - run.sh: `--twin_top_k_per_domain "64,64,64,96"` flag bake (1 line)
+       - README.md: H021 identity rewrite
+       - dataset.py / infer.py / make_schema.py / utils.py / local_validate.py / trainer.py / ns_groups.json / requirements.txt: byte-identical
+       - **TWINBlock class byte-identical**: 이미 top_k 를 init param 으로 받기 때문에 변경 불필요
+    3. local sanity (§17.5): 1 epoch 1000-row + 4 TWINBlock 의 top_k 값 print 확인 + domain d forward NaN-free
+    4. dataset-inference-auditor (§18.6): PASS 받기 전 cloud upload 금지
+    5. cloud T2.4 submit (`bash run.sh --seed 42`)
+    6. result 회수 → verify-claim skill → verdict.md 갱신 → INDEX.md update + paired 비교 with H020

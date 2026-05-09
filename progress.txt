@@ -498,3 +498,91 @@ OPEN QUESTIONS
 - (carry-over) raw metrics.json paste — best_step / val_AUC / config_sha256 / git_sha 확인 (sanity gate 재검증) + 사용자 batch/lr 실제 override 값 명시.
 - (new) H012 의 wall 큰 폭 단축 (학습 −24%, inference −54%) — IO bound 가능성. H013 data loading 최적화 시 효과 측정.
 - (new) NS-token level mechanism class 가 sample-scale + underpowered regime 에서 specialization 학습 못 하는 한계 (H011/H012 공통). full-data + proper lr 에서 다시 보면 다른가.
+
+================================================================================
+2026-05-04 — iter — H028/H029/H030 methodology validation set scaffolded + built
+================================================================================
+
+CONTEXT
+- 9 H 누적 (H011-H026) val_auc 0.832~0.836 narrow band (0.4pt = 0.5% rel variation).
+- mechanism 변경 무관 → measurement framework 자체 의문.
+- 5 root cause hypotheses 식별: (#1) cohort saturation, (#2) Keskar trap,
+  (#3) val set too small, (#4) loss_type ambiguity, (#5) Bayes ceiling.
+- paradigm shift (H019 TWIN $15) 보류 — methodology validation 우선.
+
+EXECUTION
+- H028 (split_seed sweep 42/43/44, $15) — cohort saturation diagnostic
+- H029 (batch=256 default regime, $5-7) — Keskar trap diagnostic
+- H030 (loss_type focal explicit, $5) — loss isolation diagnostic
+- 3 H 모두 H022 fork (§18.8 emit + bce explicit + batch=1024 baseline)
+- mutation 만 run.sh CLI 변경 (model.py / dataset.py / trainer.py byte-identical
+  per md5 verify)
+- AST parse PASS for all 3 train.py
+- 3 tar.gz built: H028 63KB / H029 63KB / H030 62KB
+- 4 minimal hypothesis docs per H (problem/transfer/predictions/verdict)
+- 3 card.yaml with §17.2 EXEMPT + §17.4 measurement re-entry justification
+
+ARTIFACTS
+- experiments/H028_split_seed_variance/{upload/, upload.tar.gz, card.yaml}
+- experiments/H029_original_default_regime/{upload/, upload.tar.gz, card.yaml}
+- experiments/H030_loss_type_focal/{upload/, upload.tar.gz, card.yaml}
+- hypotheses/H028_*/{problem,transfer,predictions,verdict}.md
+- hypotheses/H029_*/{problem,transfer,predictions,verdict}.md
+- hypotheses/H030_*/{problem,transfer,predictions,verdict}.md
+- hypotheses/INDEX.md F-G entry + Active Pipeline 3 rows
+- experiments/INDEX.md schema 5 rows added (H023/H025/H026/H027 fill + H028/H029/H030 new)
+
+NEXT (iter+1)
+- 사용자 5 cloud launches (H028 × 3 split_seeds + H029 + H030) — total ~$25
+- 결과 회수: 5 §18.8 SUMMARY blocks paste → verify-claim
+- Decision matrix:
+  σ_val(H028) > 0.005 → cohort saturation confirmed → multi-split mandatory
+  H029 val > 0.840 → Keskar confirmed → batch=256 default
+  H030 |Δ| > 0.005 → loss_type 효과 → cross-H val 비교 invalid
+- Methodology validation 통과 후 paradigm shift (H019 TWIN) 또는 다른 mechanism H 결정.
+
+================================================================================
+2026-05-07 — iter — H019 anchor backfill + H041 REFUTED + R2 axis retire
+================================================================================
+
+CONTEXT
+- H041 (R2 reframe — cold-start dual classifier + per-sample gate) 결과 회수.
+- H019 verdict.md 가 prior turn 부터 TBD 로 비어있음 — verify-claim 누락 발견.
+  사용자 정확히 지적 ("이미 메모해논거 아녔어??").
+- 본 iter = H019 anchor 정식 기록 + H041 verdict + R2 axis 회고.
+
+EXECUTION
+- H019 cloud train log 회수 (사용자 paste): 7 epoch, best ep4.
+  Val 0.83720 / OOF 0.8611 / Platform 0.839674 (이미 회수됨).
+  Δ vs H010 corrected (0.837806) Platform = +0.001868pt → PASS measurable.
+  retrieval_long_seq class 첫 valid measurement, F-G ceiling 0.832~0.836
+  의 0.838~0.840 영역 으로 mechanism class change 한해 부분 깸.
+- H041 cloud train log 회수: 5 epoch, best ep2 (vs H019 ep4 — plateau 빠름).
+  Val 0.83496 / OOF 0.8601.
+  Val Δ vs H019 = −0.00224pt / OOF Δ = −0.00100pt → 둘 다 §17.3 < +0.001pt
+  = REFUTED. Cloud submit 안 함 (slot 보호).
+- 진단: R2 reframe (target_in_history=0.4% → familiar/novel split) wrong.
+  실제로는 100% extrapolation regime — dual branch 의 split boundary
+  데이터에 부재. CLAUDE.md §0.5 step 2 (diagnose root cause) 정밀도 부족
+  시 mechanism 자기-부정 가능 → F-H 신규 finding.
+
+ARTIFACTS
+- hypotheses/H019_twin_long_seq_retrieval/verdict.md TBD → RESOLVED
+  (Val 0.83720 / OOF 0.8611 / Platform 0.839674).
+- hypotheses/H041_cold_start_branch/{problem,transfer,predictions,verdict}.md
+  신규 (4 docs, REFUTED 명시).
+- experiments/INDEX.md H019 row update + H041 row 신규.
+- hypotheses/INDEX.md Findings: F-H 신규 (data-signal mapping 결함도 fail) +
+  F-G 부분 부정 update (paradigm shift 첫 confirm — Platform 만 깸, Val/OOF
+  여전 ceiling).
+
+NEXT (iter+1)
+- R2 axis retire — cold-start dual branch sub-H 만들지 말 것.
+- R1 (H039 no-history baseline) cloud submit 우선 — F-G ceiling 의 floor
+  측정 = "history 가 lever 인가" 더 본질적 질문.
+- R4 (H040 BPR pairwise) 그 다음 — loss-objective axis blind spot.
+- H020/H021/H033/H034/H035 결과 회수 시 verify-claim 즉시 실행 (verdict.md
+  TBD 재발 방지).
+- 다음 axis 후보: capacity (depth/width), cohort drift 직접 attack, KLD
+  prior matching (class prior 12.4% ↔ predicted prob 분포).
+

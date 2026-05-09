@@ -12,6 +12,9 @@
 - 2026-05-03 16:05 KST — edit `experiments/INDEX.md`
 - 2026-05-03 16:11 KST — edit `experiments/INDEX.md`
 - 2026-05-03 16:14 KST — edit `experiments/INDEX.md`
+- 2026-05-03 19:01 KST — edit `experiments/INDEX.md`
+- 2026-05-04 15:18 KST — edit `experiments/INDEX.md`
+- 2026-05-07 17:03 KST — edit `experiments/INDEX.md`
 
 ## Notes
 

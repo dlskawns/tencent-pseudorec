@@ -1,0 +1,26 @@
+# H047 — Experiment Card (2026-05-08)
+
+hypothesis_id: H047_per_domain_aux
+control_exp_id: H019_twin_long_seq_retrieval
+
+mutation:
+  class: multi_task_per_domain
+  type: per_domain_auxiliary_classifier_heads
+  description: |
+    H019 base + 4 per-domain auxiliary classifier heads (nn.Linear(d_model, 1)).
+    forward: per-domain seq tokens 의 masked mean-pool → aux_logit per domain.
+    forward returns (logits, per_domain_aux_list) tuple.
+    trainer: aux_loss = mean(BCE per domain) × 0.25 (4 × 0.25 = 1.0 vs main).
+    Forces backbone to encode balanced per-domain prediction signal.
+
+compute_tier: T2.4
+expected_runtime_h: 3.5
+cost_estimate_usd: 6.0
+
+success_criterion:
+  primary: "Δ vs H019 (0.839674) Platform AUC ≥ +0.001pt"
+
+build_status:
+  upload_package: BUILT
+  T0_sanity: ALL PASS (AST + shellcheck + md5 verify)
+  cloud_ready: true

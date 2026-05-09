@@ -1,0 +1,131 @@
+# H033 — Experiment Card
+# Generated 2026-05-06. Stacking sub-H of H019: H020 (learnable GSU) + H021 (per-domain top_k).
+
+hypothesis_id: H033_twin_combined
+control_exp_id: H019_twin_long_seq_retrieval   # paired Δ primary (cloud actual 0.839674)
+secondary_control: H010_ns_to_s_xattn          # corrected anchor 0.837806
+parallel_sub_h:
+  - H020_learnable_gsu                          # axis 1 component
+  - H021_per_domain_top_k                       # axis 2 component
+  - H034_esu_2layer                             # 직교 capacity axis (다른 H, paired 비교 framework)
+
+mutation:
+  class: retrieval_long_seq                    # primary_category (re-entry, 4회 연속)
+  type: stacking_combined                       # H020 + H021 동시 mutation
+  description: |
+    H020 (learnable GSU projection) + H021 (per-domain top_k {seq_a:64, seq_b:64,
+    seq_c:64, seq_d:96}) 동시 적용. base = H020 upload (already has learnable_gsu)
+    + H021 wiring 추가 (PCVRHyFormer int|dict twin_top_k 처리).
+    두 직교 axis (scoring quality + scoring quantity) 동시 mutation 으로
+    stacking effect 측정.
+  single_mutation_compliance: |
+    §17.2 strict reading 위반 (2 axis 동시). 정당화 = challengers.md 의 3 사유:
+    (1) stacking H 의 본질 (paired sub-H 의 통합), (2) pre-build insurance,
+    (3) conditional cloud submit (H020/H021 결과 의존).
+
+carry_forward:
+  - H019: TWIN module + ESU + aggregator + gate=-2.0 + num_heads=4 byte-identical
+  - H020: learnable_gsu support in TWINBlock
+  - H021: int|dict twin_top_k handling in PCVRHyFormer
+  - H010: NS xattn + DCN-V2 stack byte-identical
+  - §18.7: label_time fill_null + zero_copy_only=False (H015 carry)
+  - §18.8: emit_train_summary() at end of train.py (H019 carry)
+  - H016: redefined OOF default
+
+compute_tier: T2.4
+expected_runtime_h: 3.5
+cost_estimate_usd: 7.0
+cost_cap_usd: 10.0
+cumulative_cost_h_estimate: 64.0                # H006-H021 ~57h + H034 3.5h + H033 3.5h
+campaign_cost_cap_usd: 100.0
+
+success_criterion:
+  primary: "Δ vs H019 (cloud actual 0.839674) platform AUC ≥ +0.003pt"
+  binary_classifications:
+    super_additive: "Δ ≥ max(H020, H021) + 0.003pt → 두 axis 시너지, anchor = H033"
+    additive: "Δ ≈ H020 Δ + H021 Δ (±0.001) → axis 독립, 단순 합"
+    sub_additive: "Δ < max(H020, H021) → axis 간 간섭 (H009 패턴)"
+    noise: "Δ ∈ (-0.001, +0.001pt] → 둘 다 NOOP 강한 confirm, retrieval class saturation"
+    degraded: "Δ < -0.001pt → over-capacity / instability, sub-H 또는 retire"
+  secondary:
+    delta_vs_h010: "Δ vs H010 corrected (0.837806) = +0.001868 + H033 Δ"
+    triple_paired: "H020 Δ + H021 Δ vs H033 Δ → 시너지/독립/간섭 정량"
+    val_platform_gap: "≤ +0.01pt (P5)"
+    overfit_gap: "≤ +0.005pt"
+    cost_cap: "actual ≤ $10 (P7)"
+
+ckpt_export: best
+
+falsification:
+  primary_claim: |
+    H020 (learnable GSU) + H021 (per-domain top_k) stacking 이 H019 anchor 위
+    Δ ≥ max(H020 Δ, H021 Δ) + 0.003pt super-additive lift 만든다.
+    거짓 → axis 독립 (additive) 또는 간섭 (sub-additive). 통합 가치 작음.
+  decision_tree_post_result:
+    super_additive:
+      - anchor = H033
+      - 두 axis 시너지 confirm
+      - 향후 stacking H 일반화 가치
+    additive:
+      - axis 독립
+      - 단순 합 = expected. 통합 anchor = H033 가능
+    sub_additive:
+      - H009 패턴 (axis 위치 충돌)
+      - sub-H = sequential apply (H020 학습 후 H021 fine-tune) 또는 retire
+    noise:
+      - 둘 다 NOOP 강한 confirm
+      - retrieval class saturation
+      - H034 (capacity) 또는 cohort/HSTU pivot
+    degraded:
+      - over-capacity (small data instability)
+      - sub-H = projection dim 축소 또는 H033 의 H020 부분 retire (H021 만 유지)
+
+implementation_spec: experiments/H033_twin_combined/upload/README.md
+upload_dir: experiments/H033_twin_combined/upload/
+auditor_invocation_required: true
+
+reproducibility:
+  seed: 42
+  git_sha: TBD
+  config_sha256: TBD
+  python: "3.11"
+  venv: ".venv-arm64"
+  host: "TBD (cloud platform: T2.4 Taiji 또는 동급)"
+
+verify_claim_dry_run:
+  format: §18.8 SUMMARY block
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H033_twin_combined) ===="
+    end: "==== END SUMMARY ===="
+
+rotation_audit:
+  primary_category: retrieval_long_seq
+  rotation_status: RE_ENTRY_JUSTIFIED            # 4회 연속, challengers.md 3 사유
+  prior_h_categories:
+    - H021: retrieval_long_seq (quantity axis sub-H)
+    - H020: retrieval_long_seq (scoring axis sub-H)
+    - H019: retrieval_long_seq (paradigm shift first entry)
+    - H018: temporal_cohort
+  re_entry_justification:
+    - stacking H 의 본질 (paired sub-H 통합 단계, single-mutation 룰 발견 단계 외부)
+    - pre-build = insurance (학습 비용 conditional)
+    - conditional cloud submit (H020/H021 결과 의존)
+
+prerequisite_for_h033_launch:
+  - H020 cloud actual 결과 회수
+  - H021 cloud actual 결과 회수
+  - 둘 다 PASS measurable+ 시 H033 cloud submit 권장
+  - 한 쪽 NOOP 시 H033 보류 (interpretation ambiguous)
+  - 둘 다 NOOP 시 H033 불필요 (NOOP 확정)
+  - 누적 cost audit (campaign cap $100)
+  - dataset-inference-auditor PASS (§18.6)
+
+build_status:
+  upload_package: BUILT 2026-05-06 (H020 base + H021 wiring 추가, syntax + functional tests PASS)
+  hypothesis_docs: COMPLETE (problem.md, challengers.md, transfer.md, predictions.md, lit_refs.md, verdict.md)
+  card_yaml: COMPLETE
+  next_step: |
+    1. H020/H021 cloud actual 결과 회수.
+    2. 둘 다 PASS measurable+ → H033 cloud submit (`bash run.sh --seed 42`).
+    3. 결과 회수 → verify-claim → verdict.md + INDEX.md update.
+    4. paired 비교: H020 Δ + H021 Δ vs H033 Δ → 시너지/독립/간섭 정량.

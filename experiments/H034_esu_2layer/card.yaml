@@ -1,0 +1,129 @@
+# H034 — Experiment Card
+# Generated 2026-05-06. Sub-H of H019: ESU 1-layer → 2-layer (capacity axis).
+
+hypothesis_id: H034_esu_2layer
+control_exp_id: H019_twin_long_seq_retrieval   # paired Δ primary (cloud actual 0.839674)
+secondary_control: H010_ns_to_s_xattn          # corrected anchor 0.837806
+parallel_sub_h:
+  - H020_learnable_gsu                          # 직교 scoring quality axis
+  - H021_per_domain_top_k                       # 직교 scoring quantity axis
+  - H033_twin_combined                          # H020 + H021 stacking
+
+mutation:
+  class: retrieval_long_seq                    # primary_category (re-entry, 4회 연속)
+  type: capacity_axis_refinement                # ESU multi-layer
+  description: |
+    TWINBlock 의 ESU 를 1-layer MultiheadAttention → 2-layer MHA stack
+    (intermediate residual + LayerNorm, Pre-LN style). 각 layer 후
+    `x = ln(x + layer(x, topk_history, topk_history))` 누적.
+    H019 의 다른 모든 부분 (GSU, top_k=64, aggregator, gate=-2.0,
+    num_heads=4, seq_max_lens, batch=1024) byte-identical.
+    H020/H021 와 직교 axis (capacity vs scoring quality/quantity).
+  single_mutation_compliance: |
+    §17.2 — ESU layer 수의 단일 변경. GSU / top_k / aggregator / gate /
+    num_heads 전부 H019 byte-identical. trainable params 추가 +64K
+    (4 도메인 × 16K per ESU layer).
+
+carry_forward:
+  - H019: TWIN module + GSU + aggregator + gate=-2.0 + num_heads=4 + top_k=64 byte-identical
+  - H010: NS xattn + DCN-V2 stack byte-identical
+  - §18.7: label_time fill_null + zero_copy_only=False (H015 carry)
+  - §18.8: emit_train_summary() at end of train.py (H019 carry)
+  - H016: redefined OOF default
+
+compute_tier: T2.4
+expected_runtime_h: 3.5
+cost_estimate_usd: 7.0
+cost_cap_usd: 10.0
+cumulative_cost_h_estimate: 60.5
+campaign_cost_cap_usd: 100.0
+
+success_criterion:
+  primary: "Δ vs H019 (cloud actual 0.839674) platform AUC ≥ +0.003pt"
+  binary_classifications:
+    strong: "Δ ≥ +0.003pt → ESU capacity bottleneck confirmed, anchor = H034, sub-H = num_layers=3"
+    measurable: "Δ ∈ [+0.001, +0.003pt] → 약 effect, sub-H 후보"
+    noise: "Δ ∈ (-0.001, +0.001pt] → 1-layer ESU sufficient, capacity axis dead → cohort/HSTU pivot"
+    degraded: "Δ < -0.001pt → over-capacity (small data instability), sub-H = dropout 강화 또는 retire"
+  secondary:
+    delta_vs_h010: "Δ vs H010 corrected (0.837806) = +0.001868 + H034 Δ"
+    triple_paired: "H020 + H021 + H034 → 3 axis 직교성 검증"
+    val_platform_gap: "≤ +0.01pt (P5)"
+    overfit_gap: "≤ +0.005pt"
+    cost_cap: "actual ≤ $10 (P7)"
+
+ckpt_export: best
+
+falsification:
+  primary_claim: |
+    TWIN ESU 의 1-layer → 2-layer (intermediate residual + LayerNorm) 가
+    H019 anchor 위 Δ ≥ +0.003pt 추가 lift 만든다. 거짓 → 1-layer ESU
+    sufficient → retrieval class 의 capacity axis dead → cohort 또는 HSTU
+    pivot 필수.
+  decision_tree_post_result:
+    strong:
+      - anchor = H034
+      - sub-H = num_layers=3 또는 H020+H034 / H021+H034 stacking
+      - capacity axis 영구 confirm
+    measurable:
+      - 약 effect
+      - sub-H = num_layers=3 또는 다른 axis 와 stacking
+    noise:
+      - 1-layer ESU sufficient (Frame A confirmed)
+      - retrieval class capacity axis dead
+      - H020/H021 도 noise 면 retrieval class 영구 retire
+      - cohort drift attack 또는 HSTU trunk pivot
+    degraded:
+      - over-capacity (Frame B confirmed)
+      - sub-H = dropout_rate 0.01 → 0.05 또는 retire
+
+implementation_spec: experiments/H034_esu_2layer/upload/README.md
+upload_dir: experiments/H034_esu_2layer/upload/
+auditor_invocation_required: true
+
+reproducibility:
+  seed: 42
+  git_sha: TBD
+  config_sha256: TBD
+  python: "3.11"
+  venv: ".venv-arm64"
+  host: "TBD (cloud platform: T2.4 Taiji 또는 동급)"
+
+verify_claim_dry_run:
+  format: §18.8 SUMMARY block
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H034_esu_2layer) ===="
+    end: "==== END SUMMARY ===="
+
+rotation_audit:
+  primary_category: retrieval_long_seq
+  rotation_status: RE_ENTRY_JUSTIFIED            # 4회 연속, challengers.md 5 사유
+  prior_h_categories:
+    - H021: retrieval_long_seq (quantity axis)
+    - H020: retrieval_long_seq (scoring axis)
+    - H019: retrieval_long_seq (paradigm shift first entry)
+    - H018: temporal_cohort
+  re_entry_justification:
+    - sweep saturation (H020/H021 carry)
+    - paper-faithful (H020 carry)
+    - cost-effective (H020 carry)
+    - falsification value (H020 carry)
+    - capacity axis = retrieval mechanism 의 3번째 직교 axis (H034 추가 사유)
+
+prerequisite_for_h034_launch:
+  - 누적 cost audit (campaign cap $100)
+  - dataset-inference-auditor PASS (§18.6) — TWINBlock state dict key 추가 (esu_layers/esu_norms) 가 infer.py 의 ckpt loading 에 영향 안 미치는지 검증 (cfg 기반 재구성 패턴 H019 carry)
+  - H020/H021 결과별 우선순위:
+    - 둘 다 noise → H034 즉시 cloud submit (capacity 가 마지막 hedge)
+    - 한 쪽 PASS → H034 우선순위 중간
+    - 둘 다 PASS → H033 우선, H034 후순위
+
+build_status:
+  upload_package: BUILT 2026-05-06 (H019 fork + TWINBlock multi-layer ESU patch, syntax + functional tests PASS)
+  hypothesis_docs: COMPLETE (problem.md, challengers.md, transfer.md, predictions.md, lit_refs.md, verdict.md)
+  card_yaml: COMPLETE
+  next_step: |
+    1. H020/H021 cloud actual 결과 회수.
+    2. 우선순위별 cloud submit 결정 (둘 다 noise 시 H034 즉시).
+    3. cloud submit (`bash run.sh --seed 42`).
+    4. 결과 회수 → verify-claim → verdict.md + INDEX.md update.

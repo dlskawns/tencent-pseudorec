@@ -1,0 +1,99 @@
+{
+  "source": "data/demo_1000.parquet (1000 rows) + competition/model.py + competition/dataset.py code audit",
+  "measurement_date": "2026-05-04",
+  "session_motivation": "9 H ceiling 진단 — temporal signal 의 모델 사용 현황 + EDA 측정",
+  "code_audit": {
+    "competition/model.py": {
+      "timestamp_keyword_hits": 0,
+      "label_time_keyword_hits": 0,
+      "ModelInput_NamedTuple_fields": [
+        "user_int_feats", "item_int_feats", "user_dense_feats",
+        "item_dense_feats", "_seq_domains", "label", "domain_a/b/c/d", "*_len"
+      ],
+      "ModelInput_has_timestamp": false,
+      "ModelInput_has_label_time": false,
+      "verdict": "model.py 가 timestamp / label_time 키워드 zero-hit. 9 H 모두 temporal context 를 input feature 로 사용 안 함."
+    },
+    "competition/dataset.py": {
+      "timestamp_loaded": true,
+      "timestamp_loaded_line": 510,
+      "timestamp_in_batch_dict": true,
+      "timestamp_in_batch_dict_line": 579,
+      "timestamp_used_for_seq_time_bucketing_only": true,
+      "seq_time_bucketing_lines": "633-648",
+      "verdict": "dataset.py 가 timestamp 를 batch dict 에 포함 ✅, 단 model.forward 의 ModelInput 에는 미포함. seq 내부 relative time bucketing 에만 사용."
+    }
+  },
+  "demo_1000_temporal_range": {
+    "timestamp_min": 1772725000,
+    "timestamp_max": 1772725910,
+    "timestamp_range_sec": 910,
+    "timestamp_range_minutes": 15.2,
+    "label_time_min": 1772725027,
+    "label_time_max": 1772725910,
+    "interpretation": "demo_1000 = 단일 15분 window 의 sample. hour/day-of-week 효과 local 검증 불가. full data trust 필요."
+  },
+  "univariate_auc": {
+    "label_time_minus_timestamp": {
+      "auc": 0.6049,
+      "note": "STRONG, 단 inference 에서 label_time null 가능 (§18.7 issue) → leakage risk, 직접 사용 불가",
+      "stats": {
+        "min": 2,
+        "p50": 191.5,
+        "max": 832,
+        "n_zero": 0
+      }
+    },
+    "timestamp_minus_max_seq_ts_recency": {
+      "auc": 0.5201,
+      "log1p_auc": 0.5201,
+      "note": "weak alone, 단 input feature 로 안전 (label_time 의존 없음). 단순 timestamp - row-wise max(domain_*_seq_ts)",
+      "stats": {
+        "p10": 200,
+        "p50": 687,
+        "p90": 18940
+      }
+    },
+    "log1p_seq_lengths_per_domain": {
+      "domain_a_seq_38": {"auc": 0.5276, "empty_count": 5, "empty_pct": 0.005, "rate_when_empty": 0.400},
+      "domain_b_seq_67": {"auc": 0.5175, "empty_count": 12, "empty_pct": 0.012, "rate_when_empty": 0.000},
+      "domain_c_seq_27": {"auc": 0.5356, "empty_count": 2, "empty_pct": 0.002, "rate_when_empty": 0.000},
+      "domain_d_seq_17": {"auc": 0.5092, "empty_count": 80, "empty_pct": 0.080, "rate_when_empty": 0.075}
+    }
+  },
+  "h032_chosen_features": {
+    "hour_of_day": {
+      "formula": "(timestamp // 3600) % 24",
+      "vocab_size": 24,
+      "embedding_dim": 16,
+      "demo_1000_validation": "NOT POSSIBLE (15-min window). full data trust based on standard CTR feature."
+    },
+    "day_of_week": {
+      "formula": "(timestamp // 86400) % 7",
+      "vocab_size": 7,
+      "embedding_dim": 16,
+      "demo_1000_validation": "NOT POSSIBLE (15-min window). full data trust based on standard CTR feature."
+    },
+    "recency_bucket": {
+      "formula": "clip(0, 7, log2(max(1, timestamp - max_seq_ts)))",
+      "vocab_size": 8,
+      "embedding_dim": 16,
+      "demo_1000_validation": "univariate AUC 0.5201 (weak alone). max_seq_ts = row-wise max across 4 domain ts columns."
+    }
+  },
+  "differentiation_from_h015_h018": {
+    "axis": "input feature axis (model forward)",
+    "h015_h018_axis": "loss reweight axis (per-batch / per-user gradient magnitude)",
+    "h032_novelty": "model 이 per-sample temporal context 를 forward 단계에서 직접 학습 → prediction logit 에 직접 영향. loss reweight 는 sample 별 gradient 만 조절."
+  },
+  "implications": [
+    "demo_1000 의 timestamp range = 15 분 → hour/dow 효과는 full data 에서만 검증 가능",
+    "label_time - timestamp AUC 0.6049 는 strong 하지만 inference 에서 label_time null → leakage risk, H032 에서 사용 안 함",
+    "recency (timestamp - max_seq_ts) 는 inference 에서 안전하지만 univariate 약함 (0.5201) — hour/dow 와 합쳐 평가",
+    "9 H 의 ceiling 이 temporal input 미사용 때문일 가능성 → H032 가 first-touch 카테고리 'temporal_input'"
+  ],
+  "h_used_in": [
+    "H032_timestamp_input_features/problem.md",
+    "H032_timestamp_input_features/transfer.md"
+  ]
+}

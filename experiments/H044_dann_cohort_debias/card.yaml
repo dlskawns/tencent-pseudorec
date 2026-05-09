@@ -1,0 +1,87 @@
+# H044 — Experiment Card
+# Generated 2026-05-07.
+
+hypothesis_id: H044_dann_cohort_debias
+control_exp_id: H019_twin_long_seq_retrieval        # paired Δ primary
+secondary_control: H038_aux_timestamp                # aux MSE direction (positive vs adversarial)
+
+mutation:
+  class: cohort_drift_attack                          # axis NEW first-touch
+  type: adversarial_loss_branch
+  description: |
+    H038 architecture (action_num=2) 위 gradient reversal layer 추가.
+    trainer.py 에 _GradReverse(autograd.Function) + aux_timestamp branch
+    안 dann_lambda > 0 시 aux_pred 에 GRL 적용. backbone 이 timestamp
+    (cohort proxy) 를 예측 못 하도록 adversarial 학습.
+    dann_lambda=0.5 (Ganin & Lempitsky 권장 1.0 의 절반, sample-scale 안전).
+    dann_lambda=0 시 H038 byte-identical (safe carrier).
+  single_mutation_compliance: |
+    §17.2 — GRL + branch 추가, trainer.py 변경. model.py / dataset.py /
+    infer.py / utils.py / local_validate.py / make_schema.py 6 files md5
+    identical to H038.
+
+carry_forward:
+  - H019: TWIN GSU+ESU + NS xattn + DCN-V2 user-side
+  - H038: BCE main + MSE aux on log1p(timestamp), action_num=2
+  - §18.7: label_time fill_null + zero_copy_only=False
+  - §18.8: emit_train_summary at end of train.py
+
+compute_tier: T2.4
+expected_runtime_h: 3.5
+cost_estimate_usd: 6.0
+cost_cap_usd: 12.0
+
+success_criterion:
+  primary: "Δ vs H019 (0.839674) Platform AUC ≥ +0.001pt"
+  binary_classifications:
+    strong: "Δ ≥ +0.003pt → cohort-attack main lever, sub-H lambda/cohort sweep"
+    measurable: "Δ ∈ [+0.001, +0.003pt] → additive 약 effect"
+    noise: "Δ ∈ (−0.001, +0.001pt] → timestamp cohort proxy 부족, 다른 cohort signal 시도"
+    degraded: "Δ < −0.001pt → DANN instability or axis dead"
+  secondary:
+    paired_vs_h038: "Δ vs H038 (0.839071) — aux MSE direction (positive H038 vs adversarial H044) effect size"
+
+ckpt_export: best
+
+falsification:
+  primary_claim: |
+    GRL on timestamp prediction (cohort proxy) 가 H019 platform 0.839674
+    위 Δ ≥ +0.001pt. False 시: timestamp 가 cohort proxy 로 부족 또는
+    DANN form 의 한계, 다른 cohort signal (split_seed bin, user activity)
+    또는 axis pivot.
+
+implementation_spec: experiments/H044_dann_cohort_debias/upload/README.md
+upload_dir: experiments/H044_dann_cohort_debias/upload/
+upload_tar: experiments/H044_dann_cohort_debias/upload.tar.gz
+auditor_invocation_required: true
+
+reproducibility:
+  seed: 42
+  git_sha: TBD
+  config_sha256: TBD
+  python: "3.11"
+
+verify_claim_dry_run:
+  format: §18.8 SUMMARY block
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H044_dann_cohort_debias) ===="
+    end: "==== END SUMMARY ===="
+
+rotation_audit:
+  primary_category: cohort_drift_attack
+  rotation_status: AUTO_JUSTIFIED                    # NEW first-touch
+  prior_h_categories_recent:
+    - H043: item_side_modeling (built)
+    - H042: output_distribution_supervision (built)
+    - H041: cold_start_branch (REFUTED)
+  justification: |
+    cohort_drift_attack axis NEW first-touch. F-A 패턴 9 H 누적 진단
+    (OOF over Platform 1.88~2.59pt) 후 진짜 처음 attack. H019/H038/H039
+    platform 비교가 cohort drift 가 transfer 실패의 근본 원인 정량 confirm.
+
+build_status:
+  upload_package: BUILT
+  hypothesis_docs: COMPLETE (problem/transfer/predictions/verdict)
+  card_yaml: COMPLETE (this file)
+  T0_sanity: ALL PASS (AST + shellcheck + 5 GRL math + md5 verify)
+  cloud_ready: true

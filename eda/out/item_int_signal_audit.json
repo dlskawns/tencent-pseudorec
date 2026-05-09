@@ -1,0 +1,59 @@
+{
+  "source": "data/demo_1000.parquet (1000 rows, label_type=2 → 12.4% positive rate)",
+  "measurement_date": "2026-05-04",
+  "session_motivation": "9 H ceiling 0.84 진단 — fid-level univariate signal 측정 (block-level dilute 가설 검증)",
+  "schema_ref": "data/schema.json item_int array",
+  "method": "5-fold KFold (random_state=42) GBDT (n_est=200, depth=3, lr=0.05)",
+  "univariate_auc_5fold_cv": {
+    "item_int_feats_13_alone_vs10": 0.6561,
+    "item_int_13_features_combined": 0.7039,
+    "all_66_scalar_features_user_plus_item_plus_missingness_plus_seqlens": 0.6462,
+    "14_missingness_bits_alone": 0.4494
+  },
+  "comparison_to_deep_model": {
+    "deep_h010_corrected_anchor_platform_auc": 0.837806,
+    "scalar_only_gbdt_5fold": 0.6462,
+    "deep_minus_gbdt": 0.1916,
+    "interpretation": "deep model adds value via seq + dense + cross — but scalar-only GBDT shows scalar features carry strong signal that may be diluted in current block-level encoding"
+  },
+  "item_int_feats_13_per_value_label_rate": {
+    "schema_vs": 10,
+    "sample_nunique": 9,
+    "values": {
+      "0": {"count": 2, "pct": 0.2, "label_rate": 1.000, "lift_vs_base_0124": 0.876, "note": "n too small, ignore"},
+      "1": {"count": 5, "pct": 0.5, "label_rate": 0.000, "lift_vs_base_0124": -0.124, "note": "n too small"},
+      "2": {"count": 460, "pct": 46.0, "label_rate": 0.072, "lift_vs_base_0124": -0.052, "note": "majority cold cluster"},
+      "3": {"count": 23, "pct": 2.3, "label_rate": 0.130, "lift_vs_base_0124": 0.006},
+      "4": {"count": 25, "pct": 2.5, "label_rate": 0.640, "lift_vs_base_0124": 0.516, "note": "STRONGEST POSITIVE LIFT"},
+      "5": {"count": 4, "pct": 0.4, "label_rate": 0.250, "lift_vs_base_0124": 0.126, "note": "n too small"},
+      "6": {"count": 235, "pct": 23.5, "label_rate": 0.077, "lift_vs_base_0124": -0.047, "note": "secondary cold"},
+      "7": {"count": 44, "pct": 4.4, "label_rate": 0.364, "lift_vs_base_0124": 0.240, "note": "secondary positive"},
+      "8": {"count": 202, "pct": 20.2, "label_rate": 0.173, "lift_vs_base_0124": 0.049, "note": "tertiary positive"}
+    },
+    "hot_cluster_definition": "i13 ∈ {4, 7, 8} = 271 items (27.1%)"
+  },
+  "user_int_correlated_with_hot_item_13": {
+    "method": "univariate AUC predicting hot_item_13 (i13 ∈ {4,7,8}) from each user_int_scalar_fid",
+    "top_low_vocab_picks": {
+      "user_int_1": {"schema_vs": 6, "sample_nunique": 3, "hot_auc": 0.5617, "abs_delta_from_05": 0.0617},
+      "user_int_97": {"schema_vs": 5, "sample_nunique": 4, "hot_auc": 0.5552, "abs_delta_from_05": 0.0552},
+      "user_int_58": {"schema_vs": 4, "sample_nunique": 3, "hot_auc": 0.4546, "abs_delta_from_05": 0.0454},
+      "user_int_49": {"schema_vs": 4, "sample_nunique": 3, "hot_auc": 0.5425, "abs_delta_from_05": 0.0425},
+      "user_int_55": {"schema_vs": 43, "sample_nunique": 14, "hot_auc": 0.5383, "abs_delta_from_05": 0.0383, "note": "medium card, not picked for H031"},
+      "user_int_48": {"schema_vs": 101, "sample_nunique": 53, "hot_auc": 0.4630, "abs_delta_from_05": 0.0370, "note": "medium card"},
+      "user_int_54": {"schema_vs": 2845, "sample_nunique": 463, "hot_auc": null, "note": "high card, excluded from H031 outer-product cross (cost prohibitive)"},
+      "user_int_95": {"schema_vs": 5, "sample_nunique": 4, "hot_auc": 0.5346, "abs_delta_from_05": 0.0346}
+    },
+    "h031_picked_5_fids": [1, 97, 58, 49, 95],
+    "h031_picked_rationale": "all schema_vs ≤ 6, total cross matrix size = 24 cells × 32 cross_dim ≈ 768 params (small)"
+  },
+  "implications": [
+    "item_int_feats_13 단일 GBDT AUC 0.6561 > 14 missingness bits joint 0.4494 — fid-level explicit cross 가 missingness 처리보다 우선",
+    "item_13 hot cluster {4,7,8} = 27.1% items, label rate 0.17~0.64 (cold 0.07~0.08 의 2~9x) — block-level NS embedding 합산이 dilute 가능성",
+    "user_int 5 fids (1, 97, 58, 49, 95) 모두 vs ≤ 6 → outer-product cross 비용 작음 → H031 의 explicit cross 후보로 적합"
+  ],
+  "h_used_in": [
+    "H031_item13_explicit_head/problem.md",
+    "H031_item13_explicit_head/transfer.md"
+  ]
+}

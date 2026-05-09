@@ -14,26 +14,59 @@
 **두 축** — 모든 가설은 두 축을 **동시에** 다뤄야:
 
 1. **Sequential axis** — 행동 시퀀스의 시간/순서/장기 관심.
-   - 표준 참조: SASRec, BERT4Rec, DIN/DIEN, SIM/TWIN, HSTU.
    - 데이터 근거: 4개 도메인 시퀀스 (`domain_a/b/c/d_seq_*`), 도메인별 컬럼 수 a=9, b=14, c=12, d=10.
 2. **Feature-interaction axis** — 스칼라/멀티밸류/dense feature의 explicit cross.
-   - 표준 참조: DCN-V2, CAN, FwFM, FmFM, AutoDis.
    - 데이터 근거: user_int 46 (35 scalar + 11 list), item_int 14 (13 scalar + 1 list), user_dense 10 (모두 list<float>).
 
-### Backbone 가이드 — 3 papers (papers/unified_backbones/)
-
-| 논문 | 핵심 메커니즘 | 우리에게 주는 lever |
-|---|---|---|
-| **OneTrans** (Tencent, WWW 2026, arXiv:2510.26104) | S-token + NS-token single-stream transformer + **mixed causal mask** + pyramid pruning | NS-token 동등분할 chunking, mixed causal로 `label_time` leakage 차단 |
-| **InterFormer** (Meta, CIKM 2025, arXiv:2411.09852) | 3-arch (Interaction × Sequence × Cross) **bidirectional bridges**, gate init σ(−2)≈0.12 | Bridge gating 패턴 — H015 DAMTB 정당화 |
-| **PCVRHyFormer** (organizer baseline, `tencent-cc/competition/`) | Per-domain seq → query decoder → joint fusion → **RankMixer NS tokenizer** + dual optimizer (Adagrad sparse + AdamW dense) | RankMixer parameter-free chunking이 sample-scale에서 직접 transferable |
-
 **하네스 규칙**:
-- P1+ 모든 H의 `transfer.md`에 §⑤ UNI-REC alignment 블록 필수: Sequential × Interaction × backbone 통합 메커니즘.
+- P1+ 모든 H의 `transfer.md`에 §⑤ UNI-REC alignment 블록 필수: Sequential × Interaction 통합 메커니즘.
 - P1 진입 조건: 시퀀스 인코더와 explicit interaction cross가 **같은 블록에서 gradient 공유** (concat-late는 P0까지만).
 - `hypotheses/INDEX.md`의 "UNI-REC axes" 컬럼: `seq` / `int` / `seq+int` / `--` 중 하나.
 
-**Anti-pattern**: 단일축 우승 주장 / 3 논문 1:1 재현 / concat만으로 "통합" 주장.
+**Anti-pattern**: 단일축 우승 주장 / 외부 paper 1:1 재현 (데이터 signal 무시한 mechanism 전이) / concat만으로 "통합" 주장.
+
+---
+
+## §0.5 Data-Signal-Driven Mechanism Design — 외부 paper 보다 우선
+
+> **원칙**: 외부 paper 의 mechanism 을 import 하기 전에, 본 데이터의 *signal* 을 보고 *원리적으로* 설계. paper 를 보더라도 그건 design 의 reference 일 뿐 — mechanism 의 정당성은 *우리 데이터 의 어떤 분포/구조가 그 mechanism 을 요구하는가* 에서 옴.
+
+### Process
+
+1. **Observe** — `eda/out/`, `INDEX.md` F-N, val/OOF/eval gap pattern, attention entropy 분포 등에서 **distribution mismatch 또는 structural failure mode** 1개 식별.
+2. **Diagnose root cause** — 현재 모델의 어떤 부분이 그 signal 에 fit 못하는가? capacity 부족? output prior mismatch? routing 학습 안 됨? cohort drift? data structure 불활용?
+3. **Design custom mechanism** — 그 signal 에 *직접* 대응하는:
+   - **Loss term**: KLD / JS / MMD divergence (output 분포 vs target 분포 일치 강제), prior matching, contrastive
+   - **Custom gate / routing**: discrete branch 가 signal 기반으로 선택
+   - **Auxiliary objective**: intermediate representation 이 data structure 와 align 되도록 supervise
+   - **Calibration head**: output prior 가 data prior 와 일치
+   - **Pattern-specific encoder**: data 의 sub-pattern 별 다른 처리
+4. **Validate on data first** — local sanity 로 mechanism 이 의도한 distribution / failure mode 를 실제로 다루는지 확인 후 cloud.
+
+### Reference example (외부 도메인 — paper transplant 아님)
+
+근무표 알고리즘에서 각 근무자별 shift 배정 분포가 unbalanced → KLD term (predicted shift distribution per worker vs uniform) 을 loss 에 추가 → 자연스럽게 균등화. 외부 paper import 안 함, signal 직접 attack. 결과: 모든 근무자가 균등 배정.
+
+이 패턴이 본 프로젝트에도 그대로 적용 가능 — 본 데이터의 어떤 분포가 imbalanced/mismatched/under-utilized 인지 본 후 KLD/auxiliary loss/custom gate 설계.
+
+### Anti-pattern
+
+- "Paper X 가 Y mechanism 으로 SOTA → 본 데이터 import" — 데이터 signal 무관한 transplantation 금지.
+- "다른 팀이 쓰니까 우리도" — 평가 신호가 우리 데이터 specific 하지 않으면 그 팀 mechanism 도 우리 데이터에 안 맞을 수 있음.
+- "Mechanism 의 작동 원리가 본 데이터 의 어떤 분포 구조와 닿는지 transfer.md 에 한 줄도 없음" — 차단.
+
+### 본 프로젝트의 data signal 후보 (지금까지 관찰)
+
+| Signal | 출처 | 가능한 mechanism direction |
+|---|---|---|
+| Class prior 12.4% positive | §3.4 | KLD: predicted prob distribution ↔ class prior 일치 강제 |
+| 4 도메인 거의 disjoint vocab (Jaccard 0.7~10%) | §3.5 | per-domain explicit routing + KLD-balanced aggregator |
+| Target item in history = 0.4% (any domain) | §3.5 | extrapolation-aware branch (cold-start head) |
+| Domain d frac_empty=8% (bimodal) | §3.5 | activity-conditioned gate, separate inactive branch |
+| User dense 3 patterns (A/B/C, §3.3) | §3.3 | pattern-specific encoder, NOT single Linear projection |
+| Aligned `<id, weight>` 8 fids | §3.2 | position-wise binding (element-wise multiply at lookup) |
+| F-G ceiling 0.832~0.836 (12 H invariant) | F-N | 외부 mechanism 으론 안 풀림 → distribution mismatch / capacity / cohort 직접 attack |
+| data_ratio=1 → 0.837785 (data ↑ 시 악화) | F-N | architecture capacity 부족 또는 cohort drift signal |
 
 ---
 
@@ -218,8 +251,8 @@ step 1, 2를 skip하면 local-minima 박힘.
 |---|---|---|---|
 | **P0** | 하네스 셋업 + 1회 platform round-trip success | scalar-only LR/LGBM baseline + class-prior `infer.py` smoke submission | `predictions.json`이 검증 통과 + 채점 시스템 valid score 1회 |
 | **P1** | P0 통과 | per-domain encoder + aligned-pair pooled + **UNI-REC unified block** (seq+interaction이 한 블록에서 gradient 공유) | OOF에서 P0 대비 ≥ 1.5 pt AUC + ablation matrix + 통합 블록이 seq-only/int-only 두 ablation 능가 |
-| **P2** | P1 통과 + 본데이터 수령 | long-seq retrieval (TWIN/SIM/ETA) + HSTU trunk OR OneTrans pyramid pruning | P1 대비 ≥ 0.5 pt AUC 또는 p90 seq-len bin GAUC 개선 |
-| **P3** | 멀티모달/SID 데이터 공개 시 | Semantic-ID generative head | HR@10 / NDCG@10 기준, 조직자 baseline 능가 |
+| **P2** | P1 통과 + 본데이터 수령 | long-seq retrieval mechanism (data signal 직접) + alternative trunk variant | P1 대비 ≥ 0.5 pt AUC 또는 p90 seq-len bin GAUC 개선 |
+| **P3** | 멀티모달/SID 데이터 공개 시 | generative recommendation head | HR@10 / NDCG@10 기준, 조직자 baseline 능가 |
 
 Phase Gate 통과는 `reports/phase_reviews/P{n}_verdict.md`에 기록. 통과 전 다음 phase 자료 생성 금지.
 
@@ -259,8 +292,8 @@ tencent-cc2/
 6. **Sample-scale param budget ≤ N/10**: 1000-row sample에서 trainable params hard ≤ 200, soft ≤ 2146. Full-data 도착 전 deep embedding tables는 archival.
 7. **Category rotation mandate**: 같은 `papers/{category}/`에서 2회 연속 실험 금지 (재진입 정당화 없으면). transfer.md에 `primary_category:` 필수.
 8. **Continuous-scouting 의무**: 학습 안 돌더라도 `papers/{cat}/*.md` 신규 + `hypotheses/HXXX/{problem,transfer,predictions}.md` 스캐폴드는 계속 생성.
-9. **OneTrans softmax-attention 트랩**: sample-scale에서 attention prob uniform collapse 위험. `attn_entropy_per_layer ≥ 0.95·log(N)` ⇒ abort, hard routing or n_experts ≤ 2.
-10. **InterFormer bridge gating init = sigmoid(−2) ≈ 0.12** — 새 bridge/scalar gate는 near-off로 시작. 즉시 active 시작은 차단.
+9. **Softmax-attention uniform-collapse 트랩**: sample-scale에서 attention prob 이 uniform 으로 붕괴 위험. `attn_entropy_per_layer ≥ 0.95·log(N)` ⇒ abort, hard routing or n_experts ≤ 2.
+10. **Bridge gating init = sigmoid(−2) ≈ 0.12** — 새 bridge/scalar gate는 near-off로 시작. 즉시 active 시작은 차단.
 
 ---
 
@@ -268,7 +301,7 @@ tencent-cc2/
 
 - **사이드 레포 침범**: tencent-cc/, ../albatrips/ 등 sibling 디렉토리에 쓰기 시도 금지 (§1).
 - **demo_1000을 본데이터처럼 다루기**: 1000 rows는 ablation 신호용. claims는 본데이터 도착 후 재검증.
-- **3 papers 1:1 재현**: transfer.md에 "what's not a clone"을 적시.
+- **외부 paper 1:1 재현**: 데이터 signal 무시한 mechanism 전이 금지. transfer.md에 "what's not a clone" + "본 데이터 어떤 signal/분포 가 이 mechanism 을 정당화하는가" 명시.
 - **TAAC2025 metric 재사용 가정**: 2025는 HR@10/NDCG@10 + 변환 weight. 2026은 `notes/refs/submission_contract.md`에 따라 conversion probability + AUC-style 가능성. 공식 metric 명시 전엔 가정 금지.
 - **algo.qq.com 미확인 항목 인용**: JS 렌더링이라 직접 fetch 불가. 사용자 paste 또는 후속 공식 문서 확보 시까지 submission_contract.md만 신뢰.
 

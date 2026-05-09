@@ -1,0 +1,124 @@
+hypothesis_id: H032_timestamp_input_features
+control_exp_id: H023_variance_baseline_redo  # bce explicit, batch=1024 (current methodology baseline)
+secondary_control: H010_ns_to_s_xattn        # corrected anchor (Platform 0.837806)
+
+mutation:
+  class: temporal_input
+  type: input_axis_temporal_features
+  description: |
+    timestamp 에서 derived 한 3 categorical features (hour_of_day=24,
+    day_of_week=7, recency_bucket from log2(timestamp - max_seq_ts)=8)
+    각각 16-dim embedding → sum → LayerNorm → Linear → d_model NS-token
+    1개 추가. DCN-V2 입력 NS-token list 에 합류. H010 backbone 외 모두
+    byte-identical.
+
+    H015~H018 의 recency 시도 (loss reweight axis) 와 다른 axis (input
+    feature axis) — model forward 가 per-sample temporal context 직접
+    학습.
+  single_mutation_compliance: |
+    §17.2: 1 mutation = "timestamp-derived 3 categorical features 를 1
+    NS-token 으로 합류". NS xattn / DCN-V2 / TransformerEncoder / seq
+    encoder 변경 없음. anchor 입력 byte-identical 외 시간 derived only
+    추가 (H010 safe stacking 패턴).
+
+carry_forward:
+  - H010: NS xattn + DCN-V2 byte-identical (anchor)
+  - H023: bce explicit, batch=1024 (OOM safety regime)
+  - §18.7: label_time fill_null + (NEW) timestamp fill_null(0)
+  - §18.8: emit_train_summary
+
+compute_tier: T2.4
+expected_runtime_h: 3.5
+cost_estimate_usd: 5.0
+cost_cap_usd: 7.0
+
+success_criterion:
+  primary: "Δ vs control platform AUC"
+  binary_classifications:
+    strong_pass: "Δ ≥ +0.005pt → temporal input signal 기존 trunk 로 못 잡던 정보 capture"
+    measurable_pass: "Δ ∈ [+0.001, +0.005pt] → marginal, sub-H (week_of_year, multi-resolution) 정당화"
+    noise: "Δ ∈ (−0.001, +0.001pt) → seq 내부 time bucketing 으로 implicit 충분, input-axis temporal retire"
+    degraded: "Δ < −0.001pt → cohort overfit (H011 패턴), retract"
+
+ckpt_export: best
+rotation_audit:
+  primary_category: temporal_input
+  rotation_status: FIRST_TOUCH  # H015~H018 은 모두 temporal_loss (loss-axis), H032 는 input-axis
+  prior_h_categories:
+    - H028: measurement
+    - H029: measurement
+    - H030: measurement
+  re_entry_justification: |
+    temporal_input 카테고리 첫 진입. H015~H018 은 temporal_loss
+    (loss reweight axis) 로 다른 카테고리. §10.7 FREE.
+
+verify_claim_dry_run:
+  expected_summary_block:
+    h_id: H032
+    config_sha256: TBD
+    git_sha: TBD
+    seed: 42
+    split_seed: 42
+    best_val_auc: TBD
+    last_val_auc: TBD
+    best_epoch: TBD
+    total_epochs: TBD
+    train_loss_first_last: [TBD, TBD]
+    oof_auc_redefined: TBD
+    oof_logloss_redefined: TBD
+    time_token_grad_norm_mean: TBD  # P3 diagnostic
+    notes: TBD
+
+build_status:
+  hypothesis_docs: SCAFFOLDED 2026-05-04
+  upload_package: BUILT 2026-05-04 (upload.tar.gz 68KB)
+  build_approach: |
+    H031 와 동일한 residual ADD post-backbone 패턴. TimeFeaturesBlock (1,873
+    params = 0.0012% of model) — 3 derived categorical (hour=24, dow=7,
+    recency=8) → 16-dim sum → LN → Linear → time_state. Output += sigmoid(gate)
+    × time_state. gate init = sigmoid(-2.0) ≈ 0.1192 (§10.10 InterFormer).
+    num_ns 변경 없음 → d_model % T 제약 안전. dataset.py 가 max_seq_ts 를
+    seq loop 안에서 tracking → recency_bucket = log2(timestamp - max_seq_ts).
+    §18.7 timestamp.fill_null(0) defensive.
+  t0_sanity_results:
+    - "TimeFeaturesBlock direct forward: shape (4, 64), NaN-free, gate=0.1192 ✅"
+    - "All 10 cross-block params have non-zero grad ✅"
+    - "Defensive clamp on OOB inputs (hour=24, dow=7, recency=8) NaN-free ✅"
+    - "Full PCVRHyFormer instantiation: 160,934,866 total params, 1,873 time block ✅"
+    - "1-batch forward (B=4) shape (4, 1) finite ✅"
+    - "Ablation enabled vs disabled max abs diff = 0.0753 ✅"
+    - "dataset.py end-to-end: hour/dow/recency 모두 vocab 범위 내 ✅"
+  files_modified:
+    - "model.py: +TimeFeaturesBlock class, ModelInput 3 Optional fields, PCVRHyFormer (+3 args, +instantiation, +forward/predict residual ADD)"
+    - "dataset.py: +max_seq_ts_global tracker, +hour/dow/recency extraction, +timestamp.fill_null(0)"
+    - "trainer.py: +3 ModelInput fields in _make_model_input"
+    - "infer.py: +3 ModelInput fields, +3 cfg.get entries"
+    - "train.py: +3 CLI args, +3 cfg dict entries"
+    - "run.sh: header rewrite + 3 H032 flags"
+  cloud_data_caveat: |
+    demo_1000 timestamp range = 15분 (1772725000~1772725910) → hour/dow uniform
+    (15/0). full data 에서 hour/dow variance 가 정상 분포될 것으로 예상.
+    EDA 측정 (eda/out/timestamp_signal_audit.json): label_time-timestamp AUC
+    0.6049 (leak risk, 사용 안 함), recency 0.5201 (input-safe, 사용).
+  next_action: |
+    Cloud submission ready. control=H023.
+    Recommended invocation:
+      bash run.sh --seed 42
+
+stacking_with_H031:
+  notes: |
+    H031 (item_13 fid-level cross) + H032 (timestamp input features) 둘 다
+    residual ADD post-backbone, orthogonal axes (interaction 강화 vs temporal
+    추가). H010 stacking-safe 패턴. 둘 다 PASS 면 H033 = stacking 시도 가능.
+
+multi_seed_decision:
+  default: single_seed=42
+  conditional: |
+    H028 결과 σ_val > 0.005pt 면 H032 도 multi-seed 42/43/44 재측정 필요.
+
+stacking_with_H031:
+  notes: |
+    H031 (item_13 head + user_int cross) 와 H032 (time NS-token) 는
+    orthogonal axes (interaction 강화 vs temporal 추가). 둘 다 NS-only
+    enrichment 패턴 (H010 stacking-safe). 둘 다 PASS 면 H033 = 둘
+    stacking 시도 가능 (H009 interference 패턴 주의).

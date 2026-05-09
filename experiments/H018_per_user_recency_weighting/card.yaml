@@ -31,7 +31,8 @@ compute_tier: T2.4
 expected_runtime_h: 3.5
 cost_estimate_usd: 5.0
 cost_cap_usd: 5.0                             # §17.6 per-job cap
-cumulative_cost_h_estimate: 44.0              # H006-H017 ~40h + H018 ~4h
+cumulative_cost_h_estimate: 44.0              # H006-H017 ~42h + H018 ~3.5h
+subset_a_total_cost_estimate_usd: 35.0        # Subset A: H018 $5 + H019 $15 + H022 $15
 
 success_criterion:
   primary: "Δ vs H015 corrected platform AUC ≥ +0.005pt"
@@ -68,7 +69,7 @@ falsification:
       - H018-sub = clip [0.5, 1.5] tight or tau=30 smoother, OR retire and paradigm shift
 
 implementation_spec: experiments/H018_per_user_recency_weighting/upload_patch.md
-upload_dir: experiments/H018_per_user_recency_weighting/upload/    # NOT YET BUILT — patch spec only
+upload_dir: experiments/H018_per_user_recency_weighting/upload/
 auditor_invocation_required: true             # §18.6 dataset-inference-auditor PASS before cloud
 
 reproducibility:                              # §4.5
@@ -109,20 +110,27 @@ rotation_audit:                               # §10.7 + §17.4
     PASS strong 시 sub-H 1회만 허용 후 rotation.
     PASS measurable 시 즉시 rotation.
 
-prerequisite_for_h018_verdict_validity:       # Tier 0 (US-001)
-  - experiments/H011_aligned_pair_encoding/training_request_remeasure.md
-  - experiments/H012_multi_domain_fusion/training_request_remeasure.md
-  - experiments/H013_hyperparameter_calibration/training_request_remeasure.md
+prerequisite_for_h018_verdict_validity:       # Tier 0 (CANCELLED via Ralph #2 US-001)
+  status: RESOLVED via log paste analysis (no re-inference)
+  files:
+    - experiments/H011_aligned_pair_encoding/training_result.md     # §18.8-style retroactive SUMMARY
+    - experiments/H012_multi_domain_fusion/training_result.md       # §18.8-style retroactive SUMMARY
+    - experiments/H013_hyperparameter_calibration/training_result.md # §18.8-style retroactive SUMMARY
   description: |
-    H011/H012/H013 corrected eval re-measurement on cloud (~5min × 3,
-    inference-only) MUST complete before H018 paired Δ comparison. Without
-    this, ranking against historical H is invalid (different eval data).
+    Original Tier 0 design called for cloud re-inference on corrected
+    eval data; user correctly noted verdict already REFUTED for all 3 H
+    making re-inference unnecessary. Replaced by retroactive log paste
+    analysis (Ralph #2 US-002, 2026-05-03). Each H's training_result.md
+    now contains §18.8-style SUMMARY block + trajectory. Platform AUC
+    remains uncorrected — −0.003pt heuristic shift documented per H.
+    H018 paired Δ vs H015 corrected (0.83805) is valid — both H018 and
+    H015 use post-correction eval data.
 
 build_status:
-  upload_package: NOT BUILT (patch spec only — out of Ralph PRD scope)
+  upload_package: BUILT (H015 upload fork + H018 patch applied)
   hypothesis_docs: COMPLETE (problem.md, challengers.md, transfer.md, predictions.md, lit_refs.md, verdict.md placeholder)
   card_yaml: COMPLETE (this file)
+  training_request: COMPLETE (training_request.md)
   next_step: |
-    Apply upload_patch.md to a fork of H015 upload/ → run local sanity
-    check (§17.5) → invoke dataset-inference-auditor (§18.6) → PASS
-    required → build tar.gz → write training_request.md → cloud submit.
+    Run local sanity check (§17.5) → invoke dataset-inference-auditor
+    (§18.6) → PASS required → build tar.gz → cloud submit.

@@ -17,6 +17,26 @@
 > 각 entity 페이지는 `## Sources` (자동) + `## Activity` (자동) + `## Notes` (수동).
 
 ## Hypotheses
+- [[by_hypothesis/H051_per_pattern_user_dense]]
+
+- [[by_hypothesis/H050_train_ratio_60]]
+
+- [[by_hypothesis/H047_per_domain_aux]]
+
+- [[by_hypothesis/H046_proper_dann]]
+
+- [[by_hypothesis/H042_kld_prior_matching]]
+
+- [[by_hypothesis/H041_cold_start_branch]]
+
+- [[by_hypothesis/H021_per_domain_top_k]]
+
+- [[by_hypothesis/H020_learnable_gsu]]
+
+- [[by_hypothesis/H032_timestamp_input_features]]
+
+- [[by_hypothesis/H031_item13_explicit_head]]
+
 - [[by_hypothesis/H022_h010_multi_seed_variance]]
 
 - [[by_hypothesis/H019_twin_long_seq_retrieval]]
@@ -27,6 +47,42 @@
 
 - [[by_hypothesis/H011_aligned_pair_encoding]]
 ## Experiments
+- [[by_experiment/H053_item_cooccurrence]]
+
+- [[by_experiment/H051_listwise_lambdarank]]
+
+- [[by_experiment/H048_user_item_bilinear]]
+
+- [[by_experiment/H047_per_domain_aux]]
+
+- [[by_experiment/H046_proper_dann]]
+
+- [[by_experiment/H044_dann_cohort_debias]]
+
+- [[by_experiment/H042_kld_prior_matching]]
+
+- [[by_experiment/H041_cold_start_branch]]
+
+- [[by_experiment/H040_pairwise_ranking]]
+
+- [[by_experiment/H039_no_history_baseline]]
+
+- [[by_experiment/H036_softmax_3class]]
+
+- [[by_experiment/H035_hstu_trunk]]
+
+- [[by_experiment/H034_esu_2layer]]
+
+- [[by_experiment/H033_twin_combined]]
+
+- [[by_experiment/H021_per_domain_top_k]]
+
+- [[by_experiment/H020_learnable_gsu]]
+
+- [[by_experiment/H032_timestamp_input_features]]
+
+- [[by_experiment/H031_item13_explicit_head]]
+
 - [[by_experiment/H022_h010_multi_seed_variance]]
 
 - [[by_experiment/H019_twin_long_seq_retrieval]]
@@ -42,11 +98,17 @@
 - [[by_experiment/H011_aligned_pair_encoding]]
 
 ## EDA
+- [[by_eda/timestamp_signal_audit]]
+
+- [[by_eda/item_int_signal_audit]]
+
 - [[by_eda/eda_backlog_sample1000]]
 
 ## Papers
 
 ## Governance
+- [[by_governance/progress]]
+
 - [[by_governance/CLAUDE]]
 
 - [[by_governance/inference_lessons]]

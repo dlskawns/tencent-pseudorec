@@ -1,0 +1,65 @@
+#!/bin/bash
+# Platform run.sh for H054_listwise_lambdarank.
+# PARADIGM SHIFT: 14 H 모두 sample-level loss (BCE/focal). H040 BPR (uniform
+# pairwise) REFUTED. H054 = LambdaRank-lite — pairwise (pos, neg) loss
+# *weighted by misorder severity* (sigmoid(-(z_pos - z_neg)) → focus on hard
+# pairs). AUC ranking 직접 최적화 (platform metric = AUC).
+# 14 H 동안 listwise/lambda-weighted ranking 0회.
+#
+# §17.2: trainer.py 만 변경. model.py / dataset.py / infer.py / utils.py 모두
+# byte-identical to H019. trainable params 추가 0.
+#
+# lambdarank_lambda=0.1 (보수적, BCE 와 balance).
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}"
+export EXP_ID="H054_listwise_lambdarank"
+
+: "${TRAIN_DATA_PATH:?TRAIN_DATA_PATH not set by platform}"
+: "${TRAIN_CKPT_PATH:?TRAIN_CKPT_PATH not set by platform}"
+: "${TRAIN_LOG_PATH:=${TRAIN_CKPT_PATH}/logs}"
+: "${TRAIN_TF_EVENTS_PATH:=${TRAIN_CKPT_PATH}/tf_events}"
+: "${TRAIN_WORK_PATH:=${TRAIN_CKPT_PATH}/work}"
+mkdir -p "${TRAIN_CKPT_PATH}" "${TRAIN_LOG_PATH}" "${TRAIN_TF_EVENTS_PATH}" "${TRAIN_WORK_PATH}"
+export TRAIN_LOG_PATH TRAIN_TF_EVENTS_PATH
+
+echo "[run.sh] DATA=${TRAIN_DATA_PATH}"
+echo "[run.sh] CKPT=${TRAIN_CKPT_PATH}"
+echo "[run.sh] EXP_ID=${EXP_ID}"
+echo "[run.sh] mode=H054 LambdaRank-lite (BCE + 0.1 * weighted pairwise on AUC)"
+
+python3 -u "${SCRIPT_DIR}/train.py" \
+    --num_epochs 10 \
+    --patience 3 \
+    --seed 42 \
+    --batch_size 1024 \
+    --lr 1e-4 \
+    --loss_type bce \
+    --ns_tokenizer_type rankmixer \
+    --user_ns_tokens 5 \
+    --item_ns_tokens 2 \
+    --num_queries 2 \
+    --ns_groups_json "" \
+    --emb_skip_threshold 1000000 \
+    --num_workers 2 \
+    --buffer_batches 4 \
+    --train_ratio 0.3 \
+    --seq_max_lens "seq_a:256,seq_b:256,seq_c:256,seq_d:256" \
+    --use_label_time_split \
+    --oof_user_ratio 0.1 \
+    --split_seed 42 \
+    --fusion_type dcn_v2 \
+    --dcn_v2_num_layers 2 \
+    --dcn_v2_rank 8 \
+    --use_ns_to_s_xattn \
+    --ns_xattn_num_heads 4 \
+    --use_twin_retrieval \
+    --twin_top_k 64 \
+    --twin_num_heads 4 \
+    --twin_gate_init -2.0 \
+    --lambdarank_lambda 0.1 \
+    --log_attn_entropy \
+    "$@"
+
+echo "[run.sh] training complete (H051); metrics at ${TRAIN_CKPT_PATH}/metrics.json"
+echo "[run.sh] check stdout above for §18.8 SUMMARY block + 'lambdarank_lambda=0.1' log"

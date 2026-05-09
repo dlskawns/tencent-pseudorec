@@ -1,0 +1,65 @@
+hypothesis_id: H028_split_seed_variance
+control_exp_id: H023_variance_baseline_redo  # split_seed=42 baseline
+secondary_control: H010_ns_to_s_xattn        # corrected anchor
+
+mutation:
+  class: measurement
+  type: split_seed_sweep
+  description: |
+    H010 mechanism + envelope byte-identical, --split_seed 42/43/44
+    sweep. Cohort saturation diagnostic — 9 H val_auc 0.832~0.836 ceiling
+    원인 #1 (cohort dependence) 검증.
+  single_mutation_compliance: |
+    §17.2 EXEMPT — measurement H, no mechanism mutation. split_seed = cohort
+    assignment, 1 mutation per launch (3 launches paired for σ).
+
+carry_forward:
+  - H010: NS xattn + DCN-V2 byte-identical
+  - H023: bce explicit, batch=1024 (OOM safety regime)
+  - §18.7: label_time fill_null
+  - §18.8: emit_train_summary
+
+compute_tier: T2.4
+expected_runtime_h_per_seed: 3.5
+expected_runtime_h_total_parallel: 3.5
+expected_runtime_h_total_serial: 10.5
+cost_estimate_usd_per_seed: 5.0
+cost_estimate_usd_total: 15.0
+cost_cap_usd_per_seed: 5.0
+cost_cap_usd_total: 20.0
+
+success_criterion:
+  primary: "σ_val (3-seed stdev of best_val_auc)"
+  binary_classifications:
+    cohort_saturation_confirmed: "σ_val > 0.005pt → 9 H val 비교 invalid, future H multi-split 의무"
+    cohort_saturation_partial: "σ_val ∈ (0.001, 0.005pt] → noise band 안"
+    cohort_saturation_REFUTED: "σ_val ≤ 0.001pt → cohort 무관, H029/H030 root cause 우선"
+
+ckpt_export: best
+rotation_audit:
+  primary_category: measurement
+  rotation_status: RE_ENTRY_JUSTIFIED
+  prior_h_categories:
+    - H022: measurement (anomaly)
+    - H023: measurement (variance baseline redo)
+    - H028: measurement (split_seed sweep, methodology)
+  re_entry_justification: |
+    measurement category H 는 framework validation 의 연속. H022/H023
+    이 single-seed variance 측정, H028 = split-level variance (다른 axis).
+
+verify_claim_dry_run:
+  format: §18.8 SUMMARY block (3 separate per split_seed)
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H028_split_seed_variance, seed=42) ===="
+    end: "==== END SUMMARY ===="
+  required_fields_check:
+    - git, cfg, seed, ckpt_exported (3 SUMMARY blocks, one per split_seed launch)
+    - aggregate post-3-runs: σ_val, σ_oof, σ_platform
+
+build_status:
+  upload_package: BUILT (fork H022 + run.sh + train.py exp_id + README)
+  hypothesis_docs: COMPLETE (problem, transfer, predictions, verdict — minimal measurement docs)
+  card_yaml: COMPLETE (this file)
+  next_step: |
+    3 GPU/slot 확보 → 3 launches (split_seed 42/43/44) parallel
+    OR sequential → §18.8 SUMMARY 3개 paste → verify-claim σ_val classification.

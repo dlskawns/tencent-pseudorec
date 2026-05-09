@@ -1,0 +1,105 @@
+hypothesis_id: H031_item13_explicit_head
+control_exp_id: H023_variance_baseline_redo  # bce explicit, batch=1024 (current methodology baseline)
+secondary_control: H010_ns_to_s_xattn        # corrected anchor (Platform 0.837806)
+
+mutation:
+  class: feature_engineering
+  type: fid_level_explicit_cross
+  description: |
+    item_int_feats_13 (vs=10, demo_1000 univariate AUC 0.6561) 을 RankMixerNSTokenizer
+    의 14-feat item block 에서 분리 → 32-dim dedicated embedding.
+    user_int{1, 97, 58, 49, 95} (모두 vs ≤ 6, hot_item_13 differentiation
+    AUC 0.53~0.56) 도 분리 → 16-dim embeddings.
+    Outer-product cross: item_13_emb × user_int_k_emb → mean-stack → 1
+    cross-token (32-dim → projected to d_model). DCN-V2 입력 NS-token list
+    에 합류. H010 backbone 외 모두 byte-identical.
+  single_mutation_compliance: |
+    §17.2: 1 mutation = "fid-level explicit cross block 추가". NS xattn /
+    DCN-V2 / TransformerEncoder / seq encoder 변경 없음. anchor 입력
+    byte-identical (H010 NS-only enrichment safe stacking 패턴 따름).
+
+carry_forward:
+  - H010: NS xattn + DCN-V2 byte-identical (anchor)
+  - H023: bce explicit, batch=1024 (OOM safety regime)
+  - §18.7: label_time fill_null
+  - §18.8: emit_train_summary
+
+compute_tier: T2.4
+expected_runtime_h: 3.5
+cost_estimate_usd: 5.0
+cost_cap_usd: 7.0
+
+success_criterion:
+  primary: "Δ vs control platform AUC"
+  binary_classifications:
+    strong_pass: "Δ ≥ +0.005pt → fid-level explicit cross 작동, dilute 가설 confirm, anchor 갱신"
+    measurable_pass: "Δ ∈ [+0.001, +0.005pt] → marginal, sub-H (item_9/16 추가) 정당화"
+    noise: "Δ ∈ (−0.001, +0.001pt) → NS-tokenizer 가 이미 implicit 학습, fid-level cross retire"
+    degraded: "Δ < −0.001pt → cross-token 이 DCN-V2 input distribution 흔듦, retract"
+
+ckpt_export: best
+rotation_audit:
+  primary_category: feature_engineering
+  rotation_status: FIRST_TOUCH_FROM_FID_LEVEL  # block-level (H011) 과 다른 axis
+  prior_h_categories:
+    - H028: measurement
+    - H029: measurement
+    - H030: measurement
+  re_entry_justification: |
+    feature_engineering 카테고리는 H011 (block-level input modify, REFUTED)
+    이래 미사용. H031 = fid-level explicit cross — 다른 axis. §10.7 정당화
+    필요 없음 (직전 3 H 가 measurement, feature_engineering 첫 진입).
+
+verify_claim_dry_run:
+  expected_summary_block:
+    h_id: H031
+    config_sha256: TBD
+    git_sha: TBD
+    seed: 42
+    split_seed: 42
+    best_val_auc: TBD
+    last_val_auc: TBD
+    best_epoch: TBD
+    total_epochs: TBD
+    train_loss_first_last: [TBD, TBD]
+    oof_auc_redefined: TBD
+    oof_logloss_redefined: TBD
+    cross_token_norm_mean: TBD  # P3 diagnostic
+    notes: TBD
+
+build_status:
+  hypothesis_docs: SCAFFOLDED 2026-05-04
+  upload_package: BUILT 2026-05-04 (upload.tar.gz 67KB)
+  build_approach: |
+    transfer.md 의 "RankMixerNSTokenizer 수정" invasive 안 대신, residual ADD
+    post-backbone 으로 변경 (additive, anchor 입력 byte-identical 유지). 새
+    Item13UserCrossBlock 추가 → output += sigmoid(gate) * cross_state.
+    gate init = sigmoid(-2.0) ≈ 0.1192 (§10.10 InterFormer mandate).
+    num_ns 변경 없음 → d_model % T 제약 안전.
+  t0_sanity_results:
+    - "Item13UserCrossBlock direct forward: shape (4, 64), NaN-free ✅"
+    - "All 21 params have non-zero grad with pow(2).sum() loss ✅"
+    - "Gate sigmoid(-2.0) = 0.1192 ✅"
+    - "Per-row variation: different i13 → different cross_state, uniform input → identical ✅"
+    - "Full PCVRHyFormer instantiation: 161,018,130 total params, 85,137 cross block (0.053%) ✅"
+    - "1-batch forward (B=4): shape (4, 1), finite output ✅"
+    - "Ablation enabled vs disabled: max abs diff 0.139 → cross contributes ✅"
+  files_modified:
+    - "model.py: +Item13UserCrossBlock class (~85 lines), PCVRHyFormer.__init__ (+5 args + instantiation), forward (+residual ADD), predict (+residual ADD)"
+    - "train.py: +5 CLI args (--use_item13_user_cross, --item13_emb_dim, --item13_user_emb_dim, --item13_cross_dim, --item13_gate_init), +5 cfg dict entries"
+    - "infer.py: +5 cfg.get entries"
+    - "run.sh: header rewrite + --use_item13_user_cross + 4 dim/init flags"
+  files_unchanged:
+    - "dataset.py (no schema change, no new feature extraction needed)"
+    - "make_schema.py (no schema change)"
+    - "trainer.py / utils.py / local_validate.py (forward signature compatible)"
+  next_action: |
+    Cloud submission ready. control=H023.
+    Recommended invocation:
+      bash run.sh --seed 42
+
+multi_seed_decision:
+  default: single_seed=42
+  conditional: |
+    H028 결과 σ_val > 0.005pt 면 H031 도 multi-seed 42/43/44 재측정 필요
+    (paired Δ 정합성). 비용 3x (~$15).

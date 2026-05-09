@@ -1,0 +1,143 @@
+# H020 — Experiment Card
+# Generated 2026-05-06. Sub-H of H019 (TWIN learnable GSU, scoring axis).
+
+hypothesis_id: H020_learnable_gsu
+control_exp_id: H019_twin_long_seq_retrieval   # paired Δ primary
+secondary_control: H010_ns_to_s_xattn           # corrected anchor 0.837806 (carry-forward signal)
+
+mutation:
+  class: retrieval_long_seq                     # primary_category (re-entry from H019)
+  type: mechanism_internal_refinement           # not class addition — sub-H scoring function refinement
+  description: |
+    TWINBlock GSU 의 parameter-free inner product → learnable projection.
+    `nn.Linear(d_model, d_model // 4, bias=False)` 1쌍 추가 (W_q on
+    candidate, W_k on history). score = (W_q·candidate) · (W_k·history).
+    paper-faithful GSU 직접 검증 (H019 simplified form 의 다음 깊이).
+    ESU / top_k=64 / aggregator / gate=-2.0 / num_heads=4 byte-identical to H019.
+  single_mutation_compliance: |
+    §17.2 — GSU scoring function 의 parameter-free → learnable projection 단일
+    변경. ESU MultiheadAttention / top_k filter / aggregator / gate / num_heads
+    / seq_max_lens 256/256/256/256 / batch 1024 / NS xattn / DCN-V2 stack 전부
+    H019 byte-identical.
+
+carry_forward:
+  - H019: TWIN module + ESU + aggregator + gate=-2.0 + top_k=64 byte-identical
+  - H010: NS xattn + DCN-V2 stack byte-identical (carry-forward through H019)
+  - §18.7: label_time fill_null + zero_copy_only=False (H015 carry, dataset.py 변경 없음)
+  - §18.8: emit_train_summary() at end of train.py (H019 carry, exp_id 만 변경)
+  - H016: redefined OOF default (--oof_redefine future_only)
+  - seq_max_lens 256/256/256/256 H019 carry (sweep saturation 확인 후 best 영역)
+
+compute_tier: T2.4                              # H019 동급
+expected_runtime_h: 3.5
+cost_estimate_usd: 7.0                          # T2.4 estimate
+cost_cap_usd: 10.0                              # §17.6 T2.4 per-run cap
+cumulative_cost_h_estimate: 57.0                # H006-H019 ~50h + H019 cloud 3.5h + H020 3.5h
+cumulative_cost_usd_estimate: TBD               # post H019 cloud actual
+campaign_cost_cap_usd: 100.0                    # §17.6 per-campaign
+
+success_criterion:
+  primary: "Δ vs H019 (cloud actual 0.839674) platform AUC ≥ +0.003pt"
+  binary_classifications:
+    strong: "Δ ≥ +0.003pt → learnable scoring lift, anchor = H020, H021 = per-domain top_k stack"
+    measurable: "Δ ∈ [+0.001, +0.003pt] → 약 effect, A2 stack 가능성 검증"
+    noise: "Δ ∈ (−0.001, +0.001pt] → scoring NOOP, retrieval selection axis retire → H022′ ESU(A3) 또는 cohort(C)"
+    degraded: "Δ < −0.001pt → projection rank reduction issue, sub-H = dim 확장 또는 retire"
+  secondary:
+    delta_vs_h010: "Δ vs H010 corrected (0.837806) = +0.001868 (H019 cloud actual) + H020 Δ. ≥ +0.005pt → retrieval class 영구 confirm"
+    val_platform_gap: "≤ +0.01pt (P5, F-A baseline mean −0.003pt)"
+    oof_platform_gap_redefined: "≤ +0.01pt (P6, H016 baseline −0.004pt)"
+    overfit_gap: "≤ +0.005pt (best_val − last_val)"
+    cost_cap: "actual ≤ $10 (P7, T2.4 per-run cap)"
+
+ckpt_export: best                               # §18.8 ckpt_exported field
+
+falsification:
+  primary_claim: |
+    TWIN GSU 의 parameter-free inner product → learnable projection
+    (W_q, W_k: nn.Linear(d_model, d_model//4, bias=False)) 가 H019 anchor 위
+    Δ ≥ +0.003pt 추가 lift 만든다. 만약 거짓 → backbone embedding space 가
+    이미 retrieval scoring 에 충분 → retrieval class 의 selection policy axis
+    retire. H022′ = ESU capacity (A3) 또는 cohort drift attack (C) pivot.
+  decision_tree_post_result:
+    strong:
+      - anchor = H020
+      - H021 = per-domain top_k stack on H020 base (보수안 a:64 b:64 c:32 d:96)
+      - retrieval scoring axis 영구 confirm
+    measurable:
+      - scoring 약 effect
+      - H021 = per-domain top_k 단독 (on H019 base)
+      - H020 vs H021 paired 비교 후 stack 결정
+    noise:
+      - scoring 무 effect (Frame A confirmed)
+      - retrieval selection axis retire
+      - H022′ = ESU 2-layer (A3) 또는 cohort drift (C)
+    degraded:
+      - projection rank reduction (Frame B confirmed)
+      - sub-H = projection dim d_model//2 (= 32)
+      - 또는 W_k only (W_q identity) — params 절반
+      - 또는 retire (학습 instability)
+
+implementation_spec: experiments/H020_learnable_gsu/upload_patch.md
+upload_dir: experiments/H020_learnable_gsu/upload/                # NOT YET BUILT
+auditor_invocation_required: true                                  # §18.6 mandatory before cloud upload
+
+reproducibility:                                # §4.5
+  seed: 42
+  git_sha: TBD                                  # populate post-build
+  config_sha256: TBD                            # populate post-build
+  python: "3.11"
+  venv: ".venv-arm64"
+  host: "TBD (cloud platform: T2.4 Taiji 또는 동급)"
+
+verify_claim_dry_run:                           # §18.8
+  format: §18.8 SUMMARY block
+  parser_anchors:
+    start: "==== TRAIN SUMMARY (H020_learnable_gsu) ===="
+    end: "==== END SUMMARY ===="
+  required_fields_check:
+    - git, cfg, seed, ckpt_exported
+    - epoch_history (≥1 row)
+    - best=epoch<N>, val=, oof=
+    - last=epoch<N>, val=, oof=
+    - overfit=<+/-float>
+    - calib pred=, label=, ece=
+
+rotation_audit:                                 # §10.7 + §17.4
+  primary_category: retrieval_long_seq          # re-entry from H019
+  rotation_status: RE_ENTRY_JUSTIFIED           # not auto — 4 사유 명시 (challengers.md)
+  prior_h_categories:                           # post-H019
+    - H019: retrieval_long_seq (paradigm shift first entry)
+    - H018: temporal_cohort
+    - H017: temporal_cohort
+    - H016: temporal_cohort
+    - H015: temporal_cohort
+  unexplored_categories_remaining_after_h020:
+    - backbone_replacement (OneTrans full / HSTU trunk / InterFormer 3-arch)
+    - debiasing
+  re_entry_justification:                       # §10.7 audit 통과 사유
+    - sweep saturation: top_k/seq/gate/batch axis 모두 H019 sweep saturated
+    - paper-faithful: H019 simplified GSU 의 paper-faithful learnable form 직접 검증
+    - cost-effective: 다음 paradigm shift (HSTU/OneTrans/cohort) 보다 cost 작고 mechanism class 진위 측정 정밀도 향상
+    - falsification value: 4 outcome 모두 다음 H 결정 명확 (H021 stack / H022′ ESU / cohort pivot)
+  post_h020_rotation_mandate: |
+    H020 PASS strong → H021 per-domain top_k (retrieval_long_seq 3회 연속 — H020 strong 결과 후 H021 까지 정당화).
+    H020 PASS measurable → H021 per-domain top_k 단독 비교 (re-entry 정당화).
+    H020 noise → retrieval class 3 H 누적 → 강제 rotation (backbone_replacement / debiasing / cohort attack).
+    H020 degraded → sub-H 1회 (projection dim 확장) 후 retire 결정.
+
+prerequisite_for_h020_launch:
+  - H019 cloud measurable PASS CONFIRMED (platform 0.839674, Δ vs H010 corrected +0.001868pt = §17.3 measurable band [+0.001, +0.005pt]). Frame C REFUTED — paradigm shift family confirmed as ceiling-breaker. H020 launch 정당.
+  - 누적 cost audit (Subset A H022/H028~H031 actual + H019 cloud actual)
+  - upload/ package construction + dataset-inference-auditor PASS (§18.6)
+
+build_status:
+  upload_package: BUILT 2026-05-06 (forked from H019 upload/, 4 file patch applied per upload_patch.md)
+  hypothesis_docs: COMPLETE (problem.md, challengers.md, transfer.md, predictions.md, lit_refs.md, verdict.md placeholder)
+  card_yaml: COMPLETE (this file)
+  next_step: |
+    1. H020 upload/ BUILT 2026-05-06 (this session) — fork H019 upload/ + 4 file patch.
+    2. local sanity (§17.5): 1 epoch 1000-row + GSU score variance 측정 + ablation diff
+    3. dataset-inference-auditor (§18.6): PASS 받기 전 cloud upload 금지
+    4. cloud T2.4 submit (`bash run.sh --seed 42`) — H021 와 동시 launch 권장 (paired 비교)
+    5. result 회수 → verify-claim skill → verdict.md 갱신 → INDEX.md update
